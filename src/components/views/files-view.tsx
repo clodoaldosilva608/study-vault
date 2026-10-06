@@ -1,19 +1,11 @@
 'use client';
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAppStore } from '@/lib/store/app-store';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
 import {
   Upload,
   FolderPlus,
@@ -29,6 +21,7 @@ import {
   StarOff,
   Home,
   Loader2,
+  Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatBytes, formatRelative } from '@/lib/utils/file';
@@ -62,6 +55,102 @@ type FileItem = {
 };
 
 type Breadcrumb = { id: string | null; name: string };
+
+/**
+ * Simple dropdown menu — NO portal, NO Radix.
+ * Renders inline and closes on outside click.
+ */
+function SimpleMenu({
+  trigger,
+  children,
+}: {
+  trigger: React.ReactNode;
+  children: (close: () => void) => React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <div onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}>
+        {trigger}
+      </div>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-md border border-border bg-popover shadow-md py-1">
+          {children(() => setOpen(false))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuItem({
+  icon,
+  label,
+  onClick,
+  destructive,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className={cn(
+        'w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-accent transition-colors',
+        destructive && 'text-destructive hover:bg-destructive/10',
+      )}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function MenuSeparator() {
+  return <div className="h-px bg-border my-1" />;
+}
+
+/**
+ * Simple checkbox — NO Radix, NO portal.
+ */
+function SimpleCheckbox({
+  checked,
+  onChange,
+  ariaLabel,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onChange(); }}
+      aria-label={ariaLabel}
+      className={cn(
+        'h-4 w-4 rounded border flex items-center justify-center transition-colors',
+        checked
+          ? 'bg-primary border-primary text-primary-foreground'
+          : 'bg-transparent border-muted-foreground/40',
+      )}
+    >
+      {checked && <Check className="h-3 w-3" />}
+    </button>
+  );
+}
 
 export function FilesView() {
   const currentFolderId = useAppStore((s) => s.currentFolderId);
@@ -107,7 +196,7 @@ export function FilesView() {
     }
   }, [currentFolderId]);
 
-  async function refreshBreadcrumbs(folderId: string | null) {
+  const refreshBreadcrumbs = useCallback(async (folderId: string | null) => {
     if (!folderId) {
       setBreadcrumbs([{ id: null, name: 'Root' }]);
       return;
@@ -118,21 +207,21 @@ export function FilesView() {
       let cur: (FolderItem & { parent: FolderItem | null }) | null = f;
       while (cur) {
         chain.unshift({ id: cur.id, name: cur.name });
-        cur = cur.parent as any;
+        cur = (cur.parent as any) ?? null;
       }
       chain.unshift({ id: null, name: 'Root' });
       setBreadcrumbs(chain);
     } catch {
       setBreadcrumbs([{ id: null, name: 'Root' }]);
     }
-  }
+  }, []);
 
   useEffect(() => {
     refresh();
     clearSelection();
   }, [refresh, clearSelection]);
 
-  async function handleDelete(file: FileItem) {
+  const handleDelete = useCallback(async (file: FileItem) => {
     if (!confirm(`Delete "${file.name}"? It will be moved to trash.`)) return;
     try {
       await api.delete(`/api/v1/files/${file.id}`);
@@ -141,9 +230,9 @@ export function FilesView() {
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Failed');
     }
-  }
+  }, [refresh]);
 
-  async function handleDeleteFolder(folder: FolderItem) {
+  const handleDeleteFolder = useCallback(async (folder: FolderItem) => {
     if (!confirm(`Delete folder "${folder.name}" and all its contents? They go to trash.`)) return;
     try {
       await api.delete(`/api/v1/folders/${folder.id}`);
@@ -152,9 +241,9 @@ export function FilesView() {
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Failed');
     }
-  }
+  }, [refresh]);
 
-  async function toggleFavorite(file: FileItem) {
+  const toggleFavorite = useCallback(async (file: FileItem) => {
     const isFav = (file.favorites?.length ?? 0) > 0;
     try {
       if (isFav) {
@@ -168,9 +257,9 @@ export function FilesView() {
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Failed');
     }
-  }
+  }, [refresh]);
 
-  async function handleDownload(file: FileItem) {
+  const handleDownload = useCallback(async (file: FileItem) => {
     try {
       const res = await fetch(`/api/v1/files/${file.id}/download`, { credentials: 'include' });
       if (!res.ok) throw new Error('Download failed');
@@ -187,9 +276,9 @@ export function FilesView() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Download failed');
     }
-  }
+  }, [refresh]);
 
-  async function handleBulkDelete() {
+  const handleBulkDelete = useCallback(async () => {
     if (selected.size === 0) return;
     if (!confirm(`Delete ${selected.size} selected file(s)? They go to trash.`)) return;
     let ok = 0;
@@ -202,28 +291,28 @@ export function FilesView() {
     toast.success(`${ok} file(s) moved to trash`);
     clearSelection();
     refresh();
-  }
+  }, [selected, clearSelection, refresh]);
 
   // Drag & drop
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const [draggingFileIds, setDraggingFileIds] = useState<Set<string>>(new Set());
 
-  function onFileDragStart(e: React.DragEvent, id: string) {
+  const onFileDragStart = useCallback((e: React.DragEvent, id: string) => {
     const ids = selected.size > 0 && selected.has(id) ? Array.from(selected) : [id];
     e.dataTransfer.setData('application/x-study-vault-files', JSON.stringify(ids));
     e.dataTransfer.effectAllowed = 'move';
     setDraggingFileIds(new Set(ids));
-  }
+  }, [selected]);
 
-  function onFolderDragOver(e: React.DragEvent, folderId: string) {
+  const onFolderDragOver = useCallback((e: React.DragEvent, folderId: string) => {
     if (e.dataTransfer.types.includes('application/x-study-vault-files')) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       setDragOverFolderId(folderId);
     }
-  }
+  }, []);
 
-  async function onFolderDrop(e: React.DragEvent, targetFolderId: string) {
+  const onFolderDrop = useCallback(async (e: React.DragEvent, targetFolderId: string) => {
     e.preventDefault();
     setDragOverFolderId(null);
     const raw = e.dataTransfer.getData('application/x-study-vault-files');
@@ -239,7 +328,7 @@ export function FilesView() {
     setDraggingFileIds(new Set());
     toast.success(`${ok} file(s) moved`);
     refresh();
-  }
+  }, [refresh]);
 
   const allSelected = files.length > 0 && files.every((f) => selected.has(f.id));
 
@@ -249,7 +338,7 @@ export function FilesView() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1 text-sm text-muted-foreground flex-wrap">
           {breadcrumbs.map((b, i) => (
-            <span key={b.id ?? 'root'} className="flex items-center gap-1">
+            <span key={`${b.id ?? 'root'}-${i}`} className="flex items-center gap-1">
               {i > 0 && <ChevronRight className="h-3 w-3 mx-0.5 text-muted-foreground/60" />}
               <button
                 onClick={() => setCurrentFolder(b.id)}
@@ -269,14 +358,14 @@ export function FilesView() {
           {selected.size > 0 && (
             <Button variant="destructive" size="sm" onClick={handleBulkDelete} className="gap-2">
               <Trash2 className="h-3.5 w-3.5" />
-              Delete {selected.size}
+              Excluir {selected.size}
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => setShowCreateFolder(true)} className="gap-2">
-            <FolderPlus className="h-3.5 w-3.5" /> New folder
+            <FolderPlus className="h-3.5 w-3.5" /> Nova pasta
           </Button>
           <Button size="sm" onClick={() => setShowUpload(true)} className="gap-2">
-            <Upload className="h-3.5 w-3.5" /> Upload
+            <Upload className="h-3.5 w-3.5" /> Enviar
           </Button>
         </div>
       </div>
@@ -284,16 +373,16 @@ export function FilesView() {
       {/* Select-all row */}
       {files.length > 0 && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Checkbox
+          <SimpleCheckbox
             checked={allSelected}
-            onCheckedChange={(v) => {
-              if (v) selectMany(files.map((f) => f.id));
-              else clearSelection();
+            onChange={() => {
+              if (allSelected) clearSelection();
+              else selectMany(files.map((f) => f.id));
             }}
-            aria-label="Select all"
+            ariaLabel="Selecionar tudo"
           />
           <span>
-            {files.length} file{files.length !== 1 ? 's' : ''} · {selected.size} selected
+            {files.length} arquivo{files.length !== 1 ? 's' : ''} · {selected.size} selecionado{selected.size !== 1 ? 's' : ''}
           </span>
         </div>
       )}
@@ -301,21 +390,21 @@ export function FilesView() {
       {/* Folder + file grid */}
       {loading ? (
         <div className="py-16 flex items-center justify-center text-muted-foreground text-sm gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+          <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
         </div>
       ) : folders.length === 0 && files.length === 0 ? (
         <Card className="p-10 text-center border-dashed">
           <FolderOpen className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-          <h3 className="text-sm font-medium">This folder is empty</h3>
+          <h3 className="text-sm font-medium">Esta pasta está vazia</h3>
           <p className="text-xs text-muted-foreground mt-1 mb-4">
-            Upload a file or create a subfolder to get started.
+            Envie um arquivo ou crie uma subpasta para começar.
           </p>
           <div className="flex items-center justify-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowCreateFolder(true)} className="gap-2">
-              <FolderPlus className="h-3.5 w-3.5" /> New folder
+              <FolderPlus className="h-3.5 w-3.5" /> Nova pasta
             </Button>
             <Button size="sm" onClick={() => setShowUpload(true)} className="gap-2">
-              <Upload className="h-3.5 w-3.5" /> Upload
+              <Upload className="h-3.5 w-3.5" /> Enviar
             </Button>
           </div>
         </Card>
@@ -329,7 +418,7 @@ export function FilesView() {
               onDragLeave={() => setDragOverFolderId((cur) => (cur === folder.id ? null : cur))}
               onDrop={(e) => onFolderDrop(e, folder.id)}
               className={cn(
-                'group relative flex flex-col items-center gap-2 p-4 rounded-xl border bg-card hover:bg-accent/40 hover:border-border/80 transition-colors text-center',
+                'group relative flex flex-col items-center gap-2 p-4 rounded-xl border bg-card hover:bg-accent/40 hover:border-border/80 transition-colors text-center min-h-[100px]',
                 dragOverFolderId === folder.id
                   ? 'border-primary ring-2 ring-primary/30 bg-primary/8'
                   : 'border-border/60',
@@ -338,39 +427,39 @@ export function FilesView() {
               <Folder className="h-8 w-8 text-primary/80 group-hover:text-primary transition-colors" />
               <div className="w-full">
                 <div className="text-xs font-medium truncate">{folder.name}</div>
-                <div className="text-[10px] text-muted-foreground">
+                <div className="text-[10px] text-muted-foreground truncate">
                   {folder.path || '/'}
                 </div>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    onClick={(e) => e.stopPropagation()}
-                    className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-background"
-                  >
+              <SimpleMenu
+                trigger={
+                  <span className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-background cursor-pointer">
                     <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => setRenameTarget({ type: 'folder', id: folder.id, name: folder.name })}
-                  >
-                    <Pencil className="h-3.5 w-3.5 mr-2" /> Rename
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setMoveTarget({ type: 'folder', id: folder.id })}
-                  >
-                    <FolderInput className="h-3.5 w-3.5 mr-2" /> Move
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={() => handleDeleteFolder(folder)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  </span>
+                }
+              >
+                {(close) => (
+                  <>
+                    <MenuItem
+                      icon={<Pencil className="h-3.5 w-3.5" />}
+                      label="Renomear"
+                      onClick={() => { setRenameTarget({ type: 'folder', id: folder.id, name: folder.name }); close(); }}
+                    />
+                    <MenuItem
+                      icon={<FolderInput className="h-3.5 w-3.5" />}
+                      label="Mover"
+                      onClick={() => { setMoveTarget({ type: 'folder', id: folder.id }); close(); }}
+                    />
+                    <MenuSeparator />
+                    <MenuItem
+                      icon={<Trash2 className="h-3.5 w-3.5" />}
+                      label="Excluir"
+                      destructive
+                      onClick={() => { handleDeleteFolder(folder); close(); }}
+                    />
+                  </>
+                )}
+              </SimpleMenu>
             </button>
           ))}
 
@@ -386,7 +475,7 @@ export function FilesView() {
                 onDragEnd={() => setDraggingFileIds(new Set())}
                 onClick={() => toggleSelect(file.id)}
                 className={cn(
-                  'group relative flex flex-col gap-2 p-3 rounded-xl border bg-card hover:bg-accent/30 hover:border-border/80 transition-all cursor-pointer',
+                  'group relative flex flex-col gap-2 p-3 rounded-xl border bg-card hover:bg-accent/30 hover:border-border/80 transition-all cursor-pointer min-h-[100px]',
                   isSel ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-border/60',
                   isDragging && 'opacity-50',
                 )}
@@ -397,7 +486,7 @@ export function FilesView() {
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleFavorite(file); }}
                       className="p-1 rounded hover:bg-background/80"
-                      aria-label={isFav ? 'Remove favorite' : 'Add favorite'}
+                      aria-label={isFav ? 'Remover favorito' : 'Adicionar favorito'}
                     >
                       {isFav ? (
                         <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
@@ -405,34 +494,43 @@ export function FilesView() {
                         <StarOff className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                       )}
                     </button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-1 rounded hover:bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
+                    <SimpleMenu
+                      trigger={
+                        <span className="p-1 rounded hover:bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                           <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleDownload(file)}>
-                          <Download className="h-3.5 w-3.5 mr-2" /> Download
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setRenameTarget({ type: 'file', id: file.id, name: file.name })}>
-                          <Pencil className="h-3.5 w-3.5 mr-2" /> Rename
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setMoveTarget({ type: 'file', id: file.id })}>
-                          <FolderInput className="h-3.5 w-3.5 mr-2" /> Move
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(file)}>
-                          <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        </span>
+                      }
+                    >
+                      {(close) => (
+                        <>
+                          <MenuItem
+                            icon={<Download className="h-3.5 w-3.5" />}
+                            label="Baixar"
+                            onClick={() => { handleDownload(file); close(); }}
+                          />
+                          <MenuItem
+                            icon={<Pencil className="h-3.5 w-3.5" />}
+                            label="Renomear"
+                            onClick={() => { setRenameTarget({ type: 'file', id: file.id, name: file.name }); close(); }}
+                          />
+                          <MenuItem
+                            icon={<FolderInput className="h-3.5 w-3.5" />}
+                            label="Mover"
+                            onClick={() => { setMoveTarget({ type: 'file', id: file.id }); close(); }}
+                          />
+                          <MenuSeparator />
+                          <MenuItem
+                            icon={<Trash2 className="h-3.5 w-3.5" />}
+                            label="Excluir"
+                            destructive
+                            onClick={() => { handleDelete(file); close(); }}
+                          />
+                        </>
+                      )}
+                    </SimpleMenu>
                   </div>
                 </div>
-                <div className="space-y-0.5">
+                <div className="space-y-0.5 flex-1">
                   <div className="text-xs font-medium leading-tight line-clamp-2 break-all">{file.name}</div>
                   <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                     <span>{formatBytes(file.sizeBytes)}</span>
@@ -440,13 +538,13 @@ export function FilesView() {
                     <span>{formatRelative(file.updatedAt)}</span>
                   </div>
                 </div>
-                <Checkbox
-                  checked={isSel}
-                  onCheckedChange={() => toggleSelect(file.id)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute top-2 left-2"
-                  aria-label="Select"
-                />
+                <div className="absolute top-2 left-2">
+                  <SimpleCheckbox
+                    checked={isSel}
+                    onChange={() => toggleSelect(file.id)}
+                    ariaLabel="Selecionar"
+                  />
+                </div>
               </div>
             );
           })}
@@ -470,14 +568,14 @@ export function FilesView() {
           open={!!renameTarget}
           onOpenChange={(o) => !o && setRenameTarget(null)}
           initialName={renameTarget.name}
-          title={renameTarget.type === 'folder' ? 'Rename folder' : 'Rename file'}
+          title={renameTarget.type === 'folder' ? 'Renomear pasta' : 'Renomear arquivo'}
           onConfirm={async (name) => {
             if (renameTarget.type === 'file') {
               await api.patch(`/api/v1/files/${renameTarget.id}`, { name });
             } else {
               await api.patch(`/api/v1/folders/${renameTarget.id}`, { name });
             }
-            toast.success('Renamed');
+            toast.success('Renomeado');
             refresh();
           }}
         />
@@ -493,7 +591,7 @@ export function FilesView() {
             } else {
               await api.patch(`/api/v1/folders/${moveTarget.id}`, { parentId: folderId });
             }
-            toast.success('Moved');
+            toast.success('Movido');
             refresh();
           }}
         />
