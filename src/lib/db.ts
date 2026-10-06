@@ -52,7 +52,6 @@ async function downloadDbFromBlob(): Promise<void> {
 
   try {
     const { list } = await import('@vercel/blob')
-    // Check if the blob exists
     const blobs = await list({ prefix: BLOB_KEY, limit: 1 })
     if (blobs.blobs.length === 0) {
       console.log('[db] no existing blob DB found — starting fresh')
@@ -62,6 +61,7 @@ async function downloadDbFromBlob(): Promise<void> {
     const blobUrl = blobs.blobs[0].url
     console.log('[db] downloading DB from blob:', blobUrl)
 
+    // Public blob — fetch directly
     const response = await fetch(blobUrl)
     if (!response.ok) {
       console.error('[db] blob download failed:', response.status)
@@ -72,7 +72,6 @@ async function downloadDbFromBlob(): Promise<void> {
     await fs.writeFile(DB_FILE_PATH, buffer)
     console.log('[db] DB downloaded from blob, size:', buffer.length)
   } catch (err) {
-    // Token might not be available — app still works with ephemeral SQLite.
     console.error('[db] blob download error (app will use ephemeral DB):', err instanceof Error ? err.message : err)
   }
 }
