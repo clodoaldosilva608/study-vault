@@ -77,46 +77,36 @@ async function downloadDbFromBlob(): Promise<void> {
   }
 }
 
-let uploadTimer: ReturnType<typeof setTimeout> | null = null
-
 /**
- * Upload the SQLite DB to Vercel Blob. Called after writes.
- * Debounced — multiple writes within 2 seconds are batched into one upload.
+ * Upload the SQLite DB to Vercel Blob. Called synchronously after writes.
+ * This adds ~500ms latency to each write but ensures data persists across
+ * cold starts and multiple function instances.
  */
 export async function persistDbToBlob(): Promise<void> {
   if (!process.env.VERCEL) return
 
-  // Debounce: wait 2 seconds before uploading, in case more writes come in.
-  if (uploadTimer) clearTimeout(uploadTimer)
+  try {
+    const { put, list, del } = await import('@vercel/blob')
+    // Read the local DB file
+    const buffer = await fs.readFile(DB_FILE_PATH)
 
-  return new Promise((resolve) => {
-    uploadTimer = setTimeout(async () => {
-      try {
-        const { put, list, del } = await import('@vercel/blob')
-        // Read the local DB file
-        const buffer = await fs.readFile(DB_FILE_PATH)
-
-        // Delete old blob(s) first (Vercel Blob doesn't overwrite by key)
-        try {
-          const oldBlobs = await list({ prefix: BLOB_KEY, limit: 10 })
-          for (const b of oldBlobs.blobs) {
-            await del(b.url)
-          }
-        } catch { /* ignore */ }
-
-        // Upload the new one
-        await put(BLOB_KEY, buffer, {
-          access: 'public',
-          contentType: 'application/octet-stream',
-        })
-        console.log('[db] DB uploaded to blob, size:', buffer.length)
-      } catch (err) {
-        console.error('[db] blob upload error (app continues with ephemeral DB):', err instanceof Error ? err.message : err)
+    // Delete old blob(s) first (Vercel Blob doesn't overwrite by key)
+    try {
+      const oldBlobs = await list({ prefix: BLOB_KEY, limit: 10 })
+      for (const b of oldBlobs.blobs) {
+        await del(b.url)
       }
-      uploadTimer = null
-      resolve()
-    }, 2000)
-  })
+    } catch { /* ignore */ }
+
+    // Upload the new one
+    await put(BLOB_KEY, buffer, {
+      access: 'public',
+      contentType: 'application/octet-stream',
+    })
+    console.log('[db] DB uploaded to blob, size:', buffer.length)
+  } catch (err) {
+    console.error('[db] blob upload error (app continues with ephemeral DB):', err instanceof Error ? err.message : err)
+  }
 }
 
 /**

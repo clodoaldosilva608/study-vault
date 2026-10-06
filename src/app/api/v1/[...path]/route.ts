@@ -125,9 +125,11 @@ async function dispatch(req: NextRequest, params: { path: string[] }, method: st
 
     const result = await routeRequest(req, params.path, method);
 
-    // After any write operation, persist the DB to Vercel Blob (debounced, non-blocking)
+    // After any write operation, persist the DB to Vercel Blob SYNCHRONOUSLY.
+    // This adds ~500ms latency to writes but ensures data survives cold starts
+    // and is shared across function instances.
     if (['POST', 'PATCH', 'DELETE', 'PUT'].includes(method)) {
-      persistDbToBlob().catch(() => null); // fire and forget — don't block the response
+      await persistDbToBlob();
     }
 
     return result;
