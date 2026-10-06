@@ -26,3 +26,36 @@ Stage Summary:
 - Decision logged: SPA rendered at `/` per hosting constraint. All API routes are standard REST — JARVIS and future mobile clients are unaffected.
 - Documentation: README.md, docs/ARCHITECTURE.md, docs/adr/ADR-001 through ADR-005.
 - Verified golden path with curl + Agent Browser: register → login → create folder → upload file → search → issue JARVIS credential → invoke search_files / list_folder / get_file tools → all return correct structured responses; audit log records every operation including JARVIS agent invocations with actor_type=AGENT.
+
+---
+Task ID: study-vault-deploy
+Agent: main (Super Z)
+Task: Create GitHub repo, deploy to Vercel, add change-password feature, seed user with specified credentials.
+
+Work Log:
+- Added `/api/v1/auth/change-password` endpoint with current password verification, bcrypt hashing, session invalidation, and audit log.
+- Added `USER_PASSWORD_CHANGE` audit action constant.
+- Added ChangePasswordDialog UI in Settings view with current/new/confirm fields, validation, and auto-logout on success.
+- Created `scripts/seed.ts` and `src/lib/infra/auth/seed.ts` — idempotent `ensureSeedUser()` that creates the bootstrap user (clodoaldo608@gmail.com / 88677488) with bcrypt-hashed password and personal workspace.
+- Wired `ensureSeedUser()` into `/api/v1/auth/login` so the seed user is auto-created on Vercel cold starts.
+- Adjusted `db.ts` for Vercel: DATABASE_URL defaults to `file:/tmp/study-vault.db`, STORAGE_ROOT to `/tmp/study-vault-storage`.
+- Created `ensureSchema()` that applies the Prisma schema via raw SQL (embedded as SCHEMA_SQL string in `src/lib/db/schema-sql.ts`) — idempotent CREATE TABLE IF NOT EXISTS statements.
+- Added `ensureSchema()` calls in `getAuthContext()`, `agentService.authenticate()`, and `/api/v1/auth/register` so every serverless function applies the schema before querying.
+- Created GitHub repo `clodoaldosilva608/study-vault` via API with token ghp_...
+- Pushed all code to GitHub main branch (7 commits).
+- Created Vercel project `study-vault` via API, linked to GitHub repo.
+- Set 6 environment variables (DATABASE_URL, STORAGE_ROOT, JWT_SECRET, SEED_EMAIL, SEED_PASSWORD, SEED_NAME) as encrypted, targeting production/preview/development.
+- Triggered production deployment from main branch — deployed to https://study-vault-six-delta.vercel.app
+- Added `vercel.json` with function maxDuration settings.
+- Added `postinstall` script for `prisma generate` in package.json.
+- Added `binaryTargets: ["rhel-openssl-3.0.x"]` to Prisma schema for Vercel Linux compatibility.
+- Added demo deployment note in AuthScreen about ephemeral SQLite on Vercel.
+- Updated README.md with production deployment instructions (Neon Postgres upgrade path) and environment variable reference table.
+
+Stage Summary:
+- GitHub repo: https://github.com/clodoaldosilva608/study-vault
+- Vercel deploy: https://study-vault-six-delta.vercel.app (READY, production)
+- Login credentials: clodoaldo608@gmail.com / 88677488 (auto-seeded on cold start)
+- Change password feature: fully functional (Settings → Change password), invalidates all sessions, audit-logged.
+- Known limitation: Vercel serverless uses ephemeral SQLite in /tmp — data resets on cold starts. The seed user is auto-recreated, but user-created data (folders, files, notes) is lost when the instance spins down. For persistent production use, connect a managed Postgres via DATABASE_URL env var (instructions in README).
+- All commits pushed; Vercel auto-deploys on push to main.
