@@ -39,8 +39,11 @@ type StoreState = {
   currentFolderId: string | null;
   selectedFileIds: Set<string>;
   sidebarOpen: boolean;
+  viewHistory: ViewKey[];
   bootstrap: () => Promise<void>;
   setView: (v: ViewKey) => void;
+  goBack: () => void;
+  canGoBack: () => boolean;
   setCurrentFolder: (id: string | null) => void;
   toggleFileSelected: (id: string) => void;
   selectMany: (ids: string[]) => void;
@@ -57,7 +60,8 @@ export const useAppStore = create<StoreState>((set, get) => ({
   view: 'dashboard',
   currentFolderId: null,
   selectedFileIds: new Set<string>(),
-  sidebarOpen: true,
+  sidebarOpen: false, // mobile drawer closed by default
+  viewHistory: [],
 
   bootstrap: async () => {
     set({ loading: true });
@@ -78,7 +82,29 @@ export const useAppStore = create<StoreState>((set, get) => ({
     }
   },
 
-  setView: (v) => set({ view: v, selectedFileIds: new Set<string>() }),
+  setView: (v) => {
+    const cur = get().view;
+    set({
+      view: v,
+      selectedFileIds: new Set<string>(),
+      viewHistory: cur ? [...get().viewHistory, cur] : get().viewHistory,
+      sidebarOpen: false, // close mobile drawer on navigation
+    });
+  },
+
+  goBack: () => {
+    const history = get().viewHistory;
+    if (history.length === 0) return;
+    const prev = history[history.length - 1];
+    set({
+      view: prev,
+      viewHistory: history.slice(0, -1),
+      selectedFileIds: new Set<string>(),
+      sidebarOpen: false,
+    });
+  },
+
+  canGoBack: () => get().viewHistory.length > 0,
 
   setCurrentFolder: (id) =>
     set({ currentFolderId: id, selectedFileIds: new Set<string>() }),
@@ -109,6 +135,8 @@ export const useAppStore = create<StoreState>((set, get) => ({
       view: 'dashboard',
       currentFolderId: null,
       selectedFileIds: new Set<string>(),
+      viewHistory: [],
+      sidebarOpen: false,
     });
   },
 }));

@@ -48,6 +48,8 @@ export function AuthScreen() {
         view: 'dashboard',
         selectedFileIds: new Set(),
         currentFolderId: null,
+        viewHistory: [],
+        sidebarOpen: false,
       });
       toast.success('Welcome back!');
     } catch (err) {
@@ -80,6 +82,8 @@ export function AuthScreen() {
         view: 'dashboard',
         selectedFileIds: new Set(),
         currentFolderId: null,
+        viewHistory: [],
+        sidebarOpen: false,
       });
       toast.success('Account created — your workspace is ready.');
     } catch (err) {

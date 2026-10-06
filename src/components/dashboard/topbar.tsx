@@ -3,27 +3,21 @@
 import { useAppStore, type ViewKey } from '@/lib/store/app-store';
 import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
-import { Sun, Moon, Menu } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Sun, Moon, Menu, ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 const TITLES: Record<ViewKey, { title: string; subtitle: string }> = {
-  dashboard: { title: 'Dashboard', subtitle: 'Overview of your workspace activity' },
-  files: { title: 'Files', subtitle: 'Browse and manage folders and files' },
-  favorites: { title: 'Favorites', subtitle: 'Files you marked as favorite' },
-  recent: { title: 'Recent', subtitle: 'Recently accessed files' },
-  trash: { title: 'Trash', subtitle: 'Soft-deleted files — restore or purge' },
-  search: { title: 'Search', subtitle: 'Find files across your workspace' },
-  notes: { title: 'Notes', subtitle: 'Markdown notes' },
-  obsidian: { title: 'Obsidian', subtitle: 'Import / export Markdown with your vault' },
-  audit: { title: 'Audit log', subtitle: 'Every sensitive operation, recorded' },
-  jarvis: { title: 'JARVIS tools', subtitle: 'Agent credentials and tool registry' },
-  settings: { title: 'Settings', subtitle: 'Workspace configuration' },
+  dashboard: { title: 'Dashboard', subtitle: 'Visão geral do seu workspace' },
+  files: { title: 'Arquivos', subtitle: 'Navegue e gerencie pastas e arquivos' },
+  favorites: { title: 'Favoritos', subtitle: 'Arquivos marcados como favorito' },
+  recent: { title: 'Recentes', subtitle: 'Arquivos acessados recentemente' },
+  trash: { title: 'Lixeira', subtitle: 'Arquivos excluídos — restaurar ou excluir definitivamente' },
+  search: { title: 'Buscar', subtitle: 'Encontre arquivos no seu workspace' },
+  notes: { title: 'Notas', subtitle: 'Notas em Markdown' },
+  obsidian: { title: 'Obsidian', subtitle: 'Importar / exportar Markdown do seu vault' },
+  audit: { title: 'Auditoria', subtitle: 'Cada operação sensível registrada' },
+  jarvis: { title: 'JARVIS', subtitle: 'Credenciais de agente e ferramentas' },
+  settings: { title: 'Configurações', subtitle: 'Configuração do workspace' },
 };
 
 export function TopBar() {
@@ -31,24 +25,56 @@ export function TopBar() {
   const meta = TITLES[view];
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
+  const goBack = useAppStore((s) => s.goBack);
+  const canGoBack = useAppStore((s) => s.canGoBack());
+
   useEffect(() => setMounted(true), []);
 
   return (
-    <header className="h-16 shrink-0 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6 flex items-center justify-between gap-4">
-      <div className="min-w-0">
-        <h1 className="text-base lg:text-lg font-semibold tracking-tight truncate">
-          {meta.title}
-        </h1>
-        <p className="text-[12px] text-muted-foreground truncate hidden sm:block">
-          {meta.subtitle}
-        </p>
-      </div>
-
-      <div className="flex items-center gap-2">
+    <header className="h-16 shrink-0 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-3 sm:px-4 lg:px-6 flex items-center justify-between gap-2 sticky top-0 z-30">
+      {/* Left: hamburger (mobile) + back button + title */}
+      <div className="flex items-center gap-1 min-w-0 flex-1">
+        {/* Hamburger — mobile only */}
         <Button
           size="icon"
           variant="ghost"
-          aria-label="Toggle theme"
+          aria-label="Abrir menu"
+          onClick={() => setSidebarOpen(true)}
+          className="h-9 w-9 shrink-0 md:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+
+        {/* Back button — visible when there's history */}
+        {canGoBack && (
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label="Voltar"
+            onClick={goBack}
+            className="h-9 w-9 shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        )}
+
+        <div className="min-w-0">
+          <h1 className="text-base lg:text-lg font-semibold tracking-tight truncate">
+            {meta.title}
+          </h1>
+          <p className="text-[12px] text-muted-foreground truncate hidden sm:block">
+            {meta.subtitle}
+          </p>
+        </div>
+      </div>
+
+      {/* Right: theme toggle */}
+      <div className="flex items-center gap-2 shrink-0">
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label="Alternar tema"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           className="h-9 w-9"
         >

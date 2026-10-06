@@ -56,21 +56,23 @@ export function SettingsView() {
   return (
     <div className="p-4 lg:p-8 space-y-4 max-w-3xl mx-auto">
       {/* Profile */}
-      <Card className="p-6">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl bg-primary/15 flex items-center justify-center ring-1 ring-primary/20">
+      <Card className="p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+          <div className="h-12 w-12 rounded-xl bg-primary/15 flex items-center justify-center ring-1 ring-primary/20 shrink-0">
             <User className="h-5 w-5 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold">{user?.name || 'User'}</div>
-            <div className="text-xs text-muted-foreground">{user?.email}</div>
+            <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setShowChangePwd(true)} className="gap-1.5">
-            <KeyRound className="h-3.5 w-3.5" /> Change password
-          </Button>
-          <Button variant="outline" size="sm" onClick={logout} className="gap-1.5">
-            <LogOut className="h-3.5 w-3.5" /> Sign out
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => setShowChangePwd(true)} className="gap-1.5">
+              <KeyRound className="h-3.5 w-3.5" /> Trocar senha
+            </Button>
+            <Button variant="outline" size="sm" onClick={logout} className="gap-1.5">
+              <LogOut className="h-3.5 w-3.5" /> Sair
+            </Button>
+          </div>
         </div>
       </Card>
 

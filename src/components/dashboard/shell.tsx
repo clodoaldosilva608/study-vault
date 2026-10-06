@@ -1,7 +1,7 @@
 'use client';
 
 import { useAppStore, type ViewKey } from '@/lib/store/app-store';
-import { Sidebar } from './sidebar';
+import { Sidebar, MobileSidebar } from './sidebar';
 import { TopBar } from './topbar';
 import { DashboardView } from '@/components/views/dashboard-view';
 import { FilesView } from '@/components/views/files-view';
@@ -21,6 +21,7 @@ export function DashboardShell() {
   return (
     <div className="min-h-screen flex bg-background">
       <Sidebar />
+      <MobileSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar />
         <main className="flex-1 overflow-y-auto">
