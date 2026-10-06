@@ -5,6 +5,7 @@ import { useAppStore } from '@/lib/store/app-store';
 import { AuthScreen } from '@/components/screens/auth-screen';
 import { DashboardShell } from '@/components/dashboard/shell';
 import { BootScreen } from '@/components/screens/boot-screen';
+import { ErrorBoundary } from '@/components/common/error-boundary';
 
 export default function Home() {
   const loading = useAppStore((s) => s.loading);
@@ -15,7 +16,15 @@ export default function Home() {
     bootstrap();
   }, [bootstrap]);
 
-  if (loading) return <BootScreen />;
-  if (!user) return <AuthScreen />;
-  return <DashboardShell />;
+  return (
+    <ErrorBoundary>
+      {loading ? (
+        <BootScreen />
+      ) : !user ? (
+        <AuthScreen />
+      ) : (
+        <DashboardShell />
+      )}
+    </ErrorBoundary>
+  );
 }
