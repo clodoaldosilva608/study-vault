@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, ensureSchema } from '@/lib/db';
 import { Errors } from '@/lib/domain/errors';
 import {
   AGENT_SCOPE,
@@ -97,6 +97,10 @@ export const agentService = {
 
     const token = match[1];
     const hash = hashApiKey(token);
+
+    // On Vercel serverless, make sure the schema exists before querying.
+    await ensureSchema();
+
     const credential = await db.agentCredential.findUnique({
       where: { tokenHash: hash },
     });

@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
-import { db } from '@/lib/db';
+import { db, ensureSchema } from '@/lib/db';
 import { Errors } from '@/lib/domain/errors';
 import { AUDIT_ACTION, AUDIT_OUTCOME } from '@/lib/domain/constants';
 import { audit } from '@/lib/infra/audit/audit';
@@ -94,6 +94,9 @@ export async function getAuthContext(): Promise<AuthContext | null> {
 
   const payload = verifySessionToken(token);
   if (!payload) return null;
+
+  // On Vercel serverless, make sure the schema exists before querying.
+  await ensureSchema();
 
   const user = await db.user.findUnique({
     where: { id: payload.sub },

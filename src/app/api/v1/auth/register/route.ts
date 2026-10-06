@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { db } from '@/lib/db';
+import { db, ensureSchema } from '@/lib/db';
 import { Errors } from '@/lib/domain/errors';
 import { hashPassword } from '@/lib/infra/auth/session';
 import { setSessionCookie, signSessionToken, recordAuthEvent } from '@/lib/infra/auth/session';
@@ -14,6 +14,9 @@ export const POST = (req: NextRequest) =>
   apiHandler(async () => {
     const body = await req.json().catch(() => ({}));
     const data = validate(registerSchema, body);
+
+    // On Vercel serverless, make sure the schema exists.
+    await ensureSchema();
 
     const existing = await db.user.findUnique({ where: { email: data.email.toLowerCase() } });
     if (existing) {
