@@ -13,7 +13,7 @@ export const loginSchema = z.object({
 
 export const createFolderSchema = z.object({
   name: z.string().min(1).max(200),
-  parentId: z.string().cuid().optional().nullable(),
+  parentId: z.string().min(1).max(100).optional().nullable(),
 });
 
 export const renameFolderSchema = z.object({
@@ -21,11 +21,11 @@ export const renameFolderSchema = z.object({
 });
 
 export const moveFolderSchema = z.object({
-  parentId: z.string().cuid().optional().nullable(),
+  parentId: z.string().min(1).max(100).optional().nullable(),
 });
 
 export const moveFileSchema = z.object({
-  folderId: z.string().cuid().optional().nullable(),
+  folderId: z.string().min(1).max(100).optional().nullable(),
 });
 
 export const renameFileSchema = z.object({
@@ -35,20 +35,20 @@ export const renameFileSchema = z.object({
 export const createNoteSchema = z.object({
   title: z.string().min(1).max(255),
   content: z.string().max(500_000).optional().default(''),
-  folderId: z.string().cuid().optional().nullable(),
+  folderId: z.string().min(1).max(100).optional().nullable(),
   tags: z.array(z.string().max(50)).max(20).optional(),
 });
 
 export const updateNoteSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   content: z.string().max(500_000).optional(),
-  folderId: z.string().cuid().optional().nullable(),
+  folderId: z.string().min(1).max(100).optional().nullable(),
   tags: z.array(z.string().max(50)).max(20).optional(),
 });
 
 export const searchSchema = z.object({
   query: z.string().min(1).max(200),
-  folderId: z.string().cuid().optional().nullable(),
+  folderId: z.string().min(1).max(100).optional().nullable(),
   extension: z.string().max(20).optional(),
   mimeType: z.string().max(100).optional(),
   page: z.coerce.number().int().min(1).optional(),
