@@ -1,0 +1,55 @@
+{
+  "name": "Study Vault",
+  "short_name": "Study Vault",
+  "description": "Personal knowledge & study infrastructure platform.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a0b0d",
+  "theme_color": "#0a0b0d",
+  "categories": ["productivity", "education"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Files",
+      "short_name": "Files",
+      "url": "/?view=files"
+    },
+    {
+      "name": "Notes",
+      "short_name": "Notes",
+      "url": "/?view=notes"
+    },
+    {
+      "name": "Search",
+      "short_name": "Search",
+      "url": "/?view=search"
+    }
+  ]
+}
