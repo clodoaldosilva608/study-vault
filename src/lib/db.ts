@@ -49,11 +49,17 @@ export async function ensureSchema(): Promise<void> {
       await fs.mkdir('/tmp', { recursive: true }).catch(() => null)
 
       // Split into individual statements (each ends with ';')
-      // and filter out comments / blank lines.
+      // and remove SQL comments (lines starting with --).
       const statements = SCHEMA_SQL
         .split(/;\s*\n/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0 && !s.startsWith('--'))
+        .map((s) =>
+          s
+            .split('\n')
+            .filter((line) => !line.trim().startsWith('--'))
+            .join('\n')
+            .trim(),
+        )
+        .filter((s) => s.length > 0)
 
       let applied = 0
       for (const stmt of statements) {
