@@ -56,3 +56,11 @@ tests/
 
 # Uploads
 upload/
+
+# SQLite WAL files (auto-generated)
+version
+version-wal
+version-shm
+*.db-journal
+*.db-wal
+*.db-shm

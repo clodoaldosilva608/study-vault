@@ -109,6 +109,40 @@ bun run db:push          # Apply Prisma schema to SQLite
 bun run dev              # Start dev server on :3000
 ```
 
+## Production deployment (Vercel)
+
+The app is deployed at **https://study-vault-six-delta.vercel.app**
+
+Repository: **https://github.com/clodoaldosilva608/study-vault**
+
+### ⚠️ Important: ephemeral database on Vercel preview
+
+The Vercel preview uses SQLite stored in `/tmp`, which is **ephemeral** — each
+serverless function invocation starts with a fresh filesystem. The seed user
+(`clodoaldo608@gmail.com`) is auto-recreated on every cold start via the
+`ensureSeedUser()` bootstrap, but any other data you create (folders, files,
+notes) will be lost when the instance spins down.
+
+For a **persistent** production deployment, connect a managed Postgres:
+
+1. Create a free [Neon](https://neon.tech) project (or Supabase, or Vercel Postgres).
+2. Get the connection string (e.g. `postgresql://user:pass@host/db?sslmode=require`).
+3. In Vercel → Project → Settings → Environment Variables, set `DATABASE_URL` to the Postgres connection string.
+4. In `prisma/schema.prisma`, change the datasource provider from `sqlite` to `postgresql`.
+5. Run `prisma migrate dev --name init` to generate the Postgres schema.
+6. Redeploy.
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | `file:.../custom.db` (dev) / `file:/tmp/study-vault.db` (Vercel) | Prisma connection string. Use a Postgres URL for production. |
+| `STORAGE_ROOT` | `/home/z/my-project/storage` (dev) / `/tmp/study-vault-storage` (Vercel) | File storage root. Use Vercel Blob for production. |
+| `JWT_SECRET` | demo default (override in prod) | Secret for signing session JWTs. |
+| `SEED_EMAIL` | `clodoaldo608@gmail.com` | Bootstrap user email (auto-created on cold start). |
+| `SEED_PASSWORD` | `88677488` | Bootstrap user password (override after first login via Change password). |
+| `SEED_NAME` | `Clodoaldo` | Bootstrap user display name. |
+
 ## Roadmap (per spec section 60)
 
 - **V1.1** — UX polish, advanced previews, better search
