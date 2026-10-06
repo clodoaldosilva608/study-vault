@@ -918,32 +918,52 @@ async function handleSetup() {
 }
 
 /**
- * Runs `prisma db push` from inside the Vercel function to create/migrate
- * the Postgres schema. This is needed because the local dev environment
- * may not have network access to the Supabase Postgres instance.
+ * Creates the Postgres schema by executing raw SQL statements directly
+ * via Prisma's $executeRawUnsafe. This avoids the need for the Prisma CLI
+ * binary in the Vercel function bundle.
+ *
+ * Uses CREATE TABLE IF NOT EXISTS so it's idempotent.
  */
 async function handleMigrate() {
   try {
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
+    // Import the SCHEMA_SQL string (Postgres-compatible CREATE TABLE statements)
+    const { SCHEMA_SQL } = await import('@/lib/db/schema-sql');
 
-    // Determine the working directory on Vercel
-    const cwd = process.env.VERCEL ? '/var/task' : process.cwd();
+    // Split into individual statements
+    const statements = SCHEMA_SQL
+      .split(/;\s*\n/)
+      .map((s) =>
+        s
+          .split('\n')
+          .filter((line) => !line.trim().startsWith('--'))
+          .join('\n')
+          .trim(),
+      )
+      .filter((s) => s.length > 0);
 
-    const { stdout, stderr } = await execAsync(
-      'node ./node_modules/prisma/build/index.js db push --skip-generate --accept-data-loss',
-      {
-        cwd,
-        timeout: 120_000,
-        env: process.env,
-      },
-    );
+    let applied = 0;
+    const errors: string[] = [];
+
+    for (const stmt of statements) {
+      try {
+        await db.$executeRawUnsafe(stmt + ';');
+        applied++;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // Ignore "already exists" errors — idempotent
+        if (!msg.includes('already exists')) {
+          errors.push(`${stmt.slice(0, 80)}... -> ${msg.slice(0, 200)}`);
+        }
+      }
+    }
+
+    console.log('[migrate] applied', applied, 'statements,', errors.length, 'errors');
 
     return ok({
       migrated: true,
-      stdout: stdout.slice(-2000),
-      stderr: stderr.slice(-2000),
+      applied,
+      total: statements.length,
+      errors: errors.slice(0, 10),
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
