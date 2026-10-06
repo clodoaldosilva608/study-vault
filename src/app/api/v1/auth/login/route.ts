@@ -12,9 +12,13 @@ import { audit } from '@/lib/infra/audit/audit';
 import { AUDIT_ACTION, AUDIT_OUTCOME } from '@/lib/domain/constants';
 import { apiHandler, validate } from '@/lib/api/handler';
 import { loginSchema } from '@/lib/schemas';
+import { ensureSeedUser } from '@/lib/infra/auth/seed';
 
 export const POST = (req: NextRequest) =>
   apiHandler(async () => {
+    // Ensure the bootstrap demo user exists (idempotent — needed on Vercel cold starts).
+    await ensureSeedUser();
+
     const body = await req.json().catch(() => ({}));
     const data = validate(loginSchema, body);
 

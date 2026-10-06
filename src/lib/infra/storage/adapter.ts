@@ -4,7 +4,8 @@ import { randomBytes, createHash } from 'crypto';
 import { Errors } from '@/lib/domain/errors';
 
 const STORAGE_ROOT =
-  process.env.STORAGE_ROOT || '/home/z/my-project/storage';
+  process.env.STORAGE_ROOT ||
+  (process.env.VERCEL ? '/tmp/study-vault-storage' : '/home/z/my-project/storage');
 
 /**
  * Storage adapter interface — abstracts the file storage backend.

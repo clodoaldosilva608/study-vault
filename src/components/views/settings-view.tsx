@@ -1,9 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api/client';
+import { api, ApiError } from '@/lib/api/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { useAppStore } from '@/lib/store/app-store';
 import { useTheme } from 'next-themes';
 import { formatBytes } from '@/lib/utils/file';
@@ -16,6 +26,8 @@ import {
   Shield,
   LogOut,
   Database,
+  KeyRound,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -32,8 +44,10 @@ export function SettingsView() {
   const workspace = useAppStore((s) => s.workspace);
   const role = useAppStore((s) => s.role);
   const logout = useAppStore((s) => s.logout);
+  const bootstrap = useAppStore((s) => s.bootstrap);
   const { theme, setTheme } = useTheme();
   const [usage, setUsage] = useState<UsageResp | null>(null);
+  const [showChangePwd, setShowChangePwd] = useState(false);
 
   useEffect(() => {
     api.get<UsageResp>('/api/v1/workspaces/usage').then(setUsage).catch(() => null);
@@ -51,6 +65,9 @@ export function SettingsView() {
             <div className="text-sm font-semibold">{user?.name || 'User'}</div>
             <div className="text-xs text-muted-foreground">{user?.email}</div>
           </div>
+          <Button variant="outline" size="sm" onClick={() => setShowChangePwd(true)} className="gap-1.5">
+            <KeyRound className="h-3.5 w-3.5" /> Change password
+          </Button>
           <Button variant="outline" size="sm" onClick={logout} className="gap-1.5">
             <LogOut className="h-3.5 w-3.5" /> Sign out
           </Button>
@@ -130,7 +147,11 @@ export function SettingsView() {
           <li>• JARVIS agent API keys are SHA-256 hashed at rest</li>
           <li>• Every sensitive operation writes to the audit log</li>
           <li>• Storage paths are server-generated — no path traversal possible</li>
+          <li>• Changing password invalidates all other sessions</li>
         </ul>
+        <Button variant="outline" size="sm" onClick={() => setShowChangePwd(true)} className="gap-1.5">
+          <KeyRound className="h-3.5 w-3.5" /> Change password
+        </Button>
       </Card>
 
       {/* Architecture */}
@@ -145,6 +166,15 @@ export function SettingsView() {
           <div>PWA installable with manifest + service worker</div>
         </div>
       </Card>
+
+      <ChangePasswordDialog
+        open={showChangePwd}
+        onOpenChange={setShowChangePwd}
+        onSuccess={async () => {
+          // Password changed → session cleared → re-bootstrap (will return to auth screen).
+          await bootstrap();
+        }}
+      />
     </div>
   );
 }
@@ -157,5 +187,131 @@ function Field({ label, value, mono }: { label: string; value?: string | null; m
         {value ?? '—'}
       </div>
     </div>
+  );
+}
+
+function ChangePasswordDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onSuccess: () => void | Promise<void>;
+}) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  function reset() {
+    setCurrent('');
+    setNext('');
+    setConfirm('');
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (next !== confirm) {
+      toast.error('New password and confirmation do not match');
+      return;
+    }
+    if (next.length < 8) {
+      toast.error('New password must be at least 8 characters');
+      return;
+    }
+    setLoading(true);
+    try {
+      const r = await api.post<{ message: string }>('/api/v1/auth/change-password', {
+        currentPassword: current,
+        newPassword: next,
+      });
+      toast.success(r.message || 'Password changed');
+      reset();
+      onOpenChange(false);
+      await onSuccess();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to change password');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) reset();
+      }}
+    >
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-primary" /> Change password
+          </DialogTitle>
+          <DialogDescription>
+            Enter your current password, then choose a new one. All other sessions
+            will be signed out.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="cur-pwd">Current password</Label>
+            <Input
+              id="cur-pwd"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-pwd">New password</Label>
+            <Input
+              id="new-pwd"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={8}
+              value={next}
+              onChange={(e) => setNext(e.target.value)}
+            />
+            <p className="text-[11px] text-muted-foreground">Minimum 8 characters.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirm-pwd">Confirm new password</Label>
+            <Input
+              id="confirm-pwd"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={8}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => onOpenChange(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading || !current || !next || !confirm || next !== confirm}
+              className="gap-1.5"
+            >
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Change password
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

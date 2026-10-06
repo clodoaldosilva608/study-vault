@@ -8,7 +8,9 @@ import { audit } from '@/lib/infra/audit/audit';
 import { generateRequestKey } from './api-key';
 
 const JWT_SECRET =
-  process.env.JWT_SECRET || 'dev-only-secret-change-in-prod-0123456789';
+  process.env.JWT_SECRET ||
+  // Stable default for demo deploys. OVERRIDE in production via env var.
+  'study-vault-demo-jwt-secret-please-override-in-production-0123456789';
 const SESSION_COOKIE = 'sv_session';
 const SESSION_TTL_DAYS = 30;
 
