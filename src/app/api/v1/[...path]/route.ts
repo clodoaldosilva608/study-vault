@@ -21,7 +21,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db, ensureSchema } from '@/lib/db';
+import { db, ensureSchema, persistDbToBlob } from '@/lib/db';
 import { Errors, toHttpError } from '@/lib/domain/errors';
 import {
   requireAuth,
@@ -123,7 +123,20 @@ async function dispatch(req: NextRequest, params: { path: string[] }, method: st
     await ensureSchema();
     await ensureSeedUser();
 
-    const p = params.path;
+    const result = await routeRequest(req, params.path, method);
+
+    // After any write operation, persist the DB to Vercel Blob (debounced, non-blocking)
+    if (['POST', 'PATCH', 'DELETE', 'PUT'].includes(method)) {
+      persistDbToBlob().catch(() => null); // fire and forget — don't block the response
+    }
+
+    return result;
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+async function routeRequest(req: NextRequest, p: string[], method: string) {
     const url = new URL(req.url);
     const q = url.searchParams;
 
@@ -215,9 +228,6 @@ async function dispatch(req: NextRequest, params: { path: string[] }, method: st
     }
 
     return fail(Errors.notFound('API endpoint'));
-  } catch (err) {
-    return fail(err);
-  }
 }
 
 // ============================================================
