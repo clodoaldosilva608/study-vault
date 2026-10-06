@@ -1,6 +1,5 @@
 // Study Vault — Prisma Schema
-// Multi-tenant, SaaS-ready, RLS-compatible with Postgres when migrated.
-// SQLite is used for local MVP development.
+// Multi-tenant, SaaS-ready, RLS-compatible. Uses PostgreSQL (Supabase).
 
 generator client {
   provider      = "prisma-client-js"
@@ -8,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

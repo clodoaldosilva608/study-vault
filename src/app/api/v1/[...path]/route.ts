@@ -115,19 +115,17 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 
 // Force dynamic — never cache API responses
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 120; // 2 minutes for migrate endpoint
 
 async function dispatch(req: NextRequest, params: { path: string[] }, method: string) {
   try {
-    // Ensure schema + seed user on every request (idempotent, cached per warm instance)
-    await ensureSchema();
+    // On Postgres, schema is managed via migrations. ensureSchema() is a no-op.
+    // ensureSeedUser() still creates the bootstrap user + PRF folders if missing.
     await ensureSeedUser();
-    // Sync DB from Blob before EVERY request to get latest data from other instances
-    await syncDbFromBlob();
 
     const result = await routeRequest(req, params.path, method);
 
-    // After any write operation, persist the DB to Vercel Blob SYNCHRONOUSLY.
+    // No blob sync needed on Postgres — data is persistent.
     if (['POST', 'PATCH', 'DELETE', 'PUT'].includes(method)) {
       await persistDbToBlob();
     }
@@ -226,7 +224,12 @@ async function routeRequest(req: NextRequest, p: string[], method: string) {
 
     // ---- SETUP ----
     if (p[0] === 'setup' && method === 'POST') {
-      return ok({ setup: true, message: 'Schema + seed ready' });
+      return handleSetup();
+    }
+
+    // ---- MIGRATE (runs prisma db push from inside Vercel) ----
+    if (p[0] === 'migrate' && method === 'POST') {
+      return handleMigrate();
     }
 
     return fail(Errors.notFound('API endpoint'));
@@ -902,4 +905,52 @@ async function findOrCreateFolder(
   });
   if (existing) return existing;
   return folderService.create(ctx, { name, parentId });
+}
+
+// ============================================================
+// SETUP / MIGRATE
+// ============================================================
+
+async function handleSetup() {
+  await ensureSchema();
+  await ensureSeedUser();
+  return ok({ setup: true, message: 'Schema + seed ready' });
+}
+
+/**
+ * Runs `prisma db push` from inside the Vercel function to create/migrate
+ * the Postgres schema. This is needed because the local dev environment
+ * may not have network access to the Supabase Postgres instance.
+ */
+async function handleMigrate() {
+  try {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    // Determine the working directory on Vercel
+    const cwd = process.env.VERCEL ? '/var/task' : process.cwd();
+
+    const { stdout, stderr } = await execAsync(
+      'node ./node_modules/prisma/build/index.js db push --skip-generate --accept-data-loss',
+      {
+        cwd,
+        timeout: 120_000,
+        env: process.env,
+      },
+    );
+
+    return ok({
+      migrated: true,
+      stdout: stdout.slice(-2000),
+      stderr: stderr.slice(-2000),
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[migrate] failed', msg);
+    return NextResponse.json(
+      { ok: false, error: { code: 'MIGRATE_FAILED', message: msg.slice(2000) } },
+      { status: 500 },
+    );
+  }
 }
