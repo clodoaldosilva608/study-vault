@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server';
 import { db, ensureSchema } from '@/lib/db';
 import { Errors } from '@/lib/domain/errors';
-import { hashPassword } from '@/lib/infra/auth/session';
-import { setSessionCookie, signSessionToken, recordAuthEvent } from '@/lib/infra/auth/session';
+import { hashPassword } from '@/lib/infra/auth/password';
+import { setSessionCookie, signSessionToken } from '@/lib/infra/auth/session';
 import { workspaceService } from '@/lib/services/workspace';
 import { audit } from '@/lib/infra/audit/audit';
-import { AUDIT_ACTION, AUDIT_OUTCOME } from '@/lib/domain/constants';
+import { AUDIT_ACTION } from '@/lib/domain/constants';
 import { generateRequestKey } from '@/lib/infra/auth/api-key';
 import { apiHandler, validate } from '@/lib/api/handler';
 import { registerSchema } from '@/lib/schemas';
@@ -39,6 +39,11 @@ export const POST = (req: NextRequest) =>
       name: data.name ? `Personal — ${data.name}` : undefined,
     });
 
+    const workspace = await db.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { id: true, name: true, slug: true, plan: true, storageLimitBytes: true },
+    });
+
     const requestId = generateRequestKey();
     await audit.record({
       workspaceId,
@@ -53,8 +58,10 @@ export const POST = (req: NextRequest) =>
     const token = signSessionToken({ sub: user.id, email: user.email });
     await setSessionCookie(token);
 
+    // Return FULL auth context so the frontend can set the store directly.
     return {
       user: { id: user.id, email: user.email, name: user.name },
-      workspaceId,
+      workspace,
+      role: 'OWNER',
     };
   });

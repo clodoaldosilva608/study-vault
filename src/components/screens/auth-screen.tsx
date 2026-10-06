@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { api, ApiError } from '@/lib/api/client';
-import { useAppStore } from '@/lib/store/app-store';
+import { useAppStore, type AuthUser, type Workspace } from '@/lib/store/app-store';
 
 export function AuthScreen() {
   const bootstrap = useAppStore((s) => s.bootstrap);
@@ -30,11 +30,25 @@ export function AuthScreen() {
     e.preventDefault();
     setLoginLoading(true);
     try {
-      await api.post('/api/v1/auth/login', {
+      // Login returns the FULL auth context (user + workspace + role).
+      // We set the store directly — no second /auth/me call needed.
+      const data = await api.post<{
+        user: AuthUser;
+        workspace: Workspace;
+        role: string;
+      }>('/api/v1/auth/login', {
         email: loginEmail,
         password: loginPassword,
       });
-      await bootstrap();
+      useAppStore.setState({
+        user: data.user,
+        workspace: data.workspace,
+        role: data.role,
+        loading: false,
+        view: 'dashboard',
+        selectedFileIds: new Set(),
+        currentFolderId: null,
+      });
       toast.success('Welcome back!');
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Login failed';
@@ -48,12 +62,25 @@ export function AuthScreen() {
     e.preventDefault();
     setRegLoading(true);
     try {
-      await api.post('/api/v1/auth/register', {
+      // Register returns the FULL auth context (user + workspace + role).
+      const data = await api.post<{
+        user: AuthUser;
+        workspace: Workspace;
+        role: string;
+      }>('/api/v1/auth/register', {
         email: regEmail,
         password: regPassword,
         name: regName || undefined,
       });
-      await bootstrap();
+      useAppStore.setState({
+        user: data.user,
+        workspace: data.workspace,
+        role: data.role,
+        loading: false,
+        view: 'dashboard',
+        selectedFileIds: new Set(),
+        currentFolderId: null,
+      });
       toast.success('Account created — your workspace is ready.');
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Registration failed';

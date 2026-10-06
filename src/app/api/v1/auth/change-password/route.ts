@@ -3,10 +3,9 @@ import { db } from '@/lib/db';
 import { Errors } from '@/lib/domain/errors';
 import {
   requireAuth,
-  hashPassword,
-  verifyPassword,
   clearSessionCookie,
 } from '@/lib/infra/auth/session';
+import { hashPassword, verifyPassword } from '@/lib/infra/auth/password';
 import { audit } from '@/lib/infra/audit/audit';
 import { AUDIT_ACTION, AUDIT_OUTCOME } from '@/lib/domain/constants';
 import { apiHandler, validate } from '@/lib/api/handler';

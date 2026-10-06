@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { Errors } from '@/lib/domain/errors';
 import {
-  hashPassword,
   verifyPassword,
   signSessionToken,
   setSessionCookie,
@@ -53,6 +52,11 @@ export const POST = (req: NextRequest) =>
       throw Errors.internal('User has no workspace');
     }
 
+    const workspace = await db.workspace.findUnique({
+      where: { id: membership.workspaceId },
+      select: { id: true, name: true, slug: true, plan: true, storageLimitBytes: true },
+    });
+
     const requestId = generateRequestKey();
     await audit.record({
       workspaceId: membership.workspaceId,
@@ -67,8 +71,12 @@ export const POST = (req: NextRequest) =>
     const token = signSessionToken({ sub: user.id, email: user.email });
     await setSessionCookie(token);
 
+    // Return FULL user + workspace + role so the frontend can set the store
+    // directly without needing a second /auth/me call (which might hit a
+    // different serverless instance with an empty DB).
     return {
       user: { id: user.id, email: user.email, name: user.name },
-      workspaceId: membership.workspaceId,
+      workspace,
+      role: membership.role,
     };
   });

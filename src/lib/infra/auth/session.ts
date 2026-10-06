@@ -1,4 +1,3 @@
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { db, ensureSchema } from '@/lib/db';
@@ -6,6 +5,10 @@ import { Errors } from '@/lib/domain/errors';
 import { AUDIT_ACTION, AUDIT_OUTCOME } from '@/lib/domain/constants';
 import { audit } from '@/lib/infra/audit/audit';
 import { generateRequestKey } from './api-key';
+import { hashPassword, verifyPassword } from './password';
+
+// Re-export password utilities for backward compatibility.
+export { hashPassword, verifyPassword };
 
 const JWT_SECRET =
   process.env.JWT_SECRET ||
@@ -26,19 +29,6 @@ export type AuthContext = {
   role: string;
   requestId: string;
 };
-
-// ---- Password hashing ----
-
-export async function hashPassword(plain: string): Promise<string> {
-  return bcrypt.hash(plain, 12);
-}
-
-export async function verifyPassword(
-  plain: string,
-  hash: string,
-): Promise<boolean> {
-  return bcrypt.compare(plain, hash);
-}
 
 // ---- JWT session ----
 
@@ -85,8 +75,25 @@ export async function getSessionToken(): Promise<string | undefined> {
 // ---- Auth context resolution ----
 
 /**
+ * Lazy import of ensureSeedUser to avoid circular dependency
+ * (seed.ts imports hashPassword from password.ts, not from session.ts).
+ */
+async function ensureSeedUserSafe(): Promise<void> {
+  try {
+    const { ensureSeedUser } = await import('./seed');
+    await ensureSeedUser();
+  } catch {
+    /* ignore — best effort */
+  }
+}
+
+/**
  * Resolve the auth context for the current request.
- * Returns null if unauthenticated. Throws DomainError if user has no workspace membership.
+ *
+ * On Vercel serverless, each function has its own ephemeral /tmp DB.
+ * The seed user uses DETERMINISTIC IDs, so ensureSeedUser() recreates
+ * the exact same user+workspace on every instance. This means a JWT
+ * issued by instance A is valid when verified by instance B.
  */
 export async function getAuthContext(): Promise<AuthContext | null> {
   const token = await getSessionToken();
@@ -95,8 +102,10 @@ export async function getAuthContext(): Promise<AuthContext | null> {
   const payload = verifySessionToken(token);
   if (!payload) return null;
 
-  // On Vercel serverless, make sure the schema exists before querying.
+  // On Vercel serverless, make sure the schema + seed user exist.
+  // This is idempotent and cached after the first call within a warm instance.
   await ensureSchema();
+  await ensureSeedUserSafe();
 
   const user = await db.user.findUnique({
     where: { id: payload.sub },
