@@ -1,7 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { SCHEMA_SQL } from '@/lib/db/schema-sql'
 import { promises as fs } from 'fs'
-import { join } from 'path'
 
 // On Vercel serverless, the filesystem is read-only except for /tmp.
 // We persist the SQLite DB there. Note: data is ephemeral per warm instance.
@@ -17,7 +16,6 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
   __dbUrl?: string
   __dbReady?: Promise<void> | undefined
-  __dbSynced?: boolean
 }
 
 // Recreate the client if the URL has changed (e.g. env switch).
@@ -25,7 +23,6 @@ if (globalForPrisma.prisma && globalForPrisma.__dbUrl !== DATABASE_URL) {
   try { globalForPrisma.prisma?.$disconnect() } catch { /* ignore */ }
   globalForPrisma.prisma = undefined
   globalForPrisma.__dbReady = undefined
-  globalForPrisma.__dbSynced = false
 }
 
 export const db =
@@ -38,82 +35,16 @@ export const db =
 globalForPrisma.__dbUrl = DATABASE_URL
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
 
-// ---- Vercel Blob sync ----
-// We persist the SQLite DB file to Vercel Blob so it survives cold starts
-// and is shared across serverless function instances.
-// On every cold start, we download the latest DB from Blob.
-// After writes, we upload the updated DB to Blob.
-
-const BLOB_KEY = 'study-vault-db.sqlite'
-const SYNC_LOCK_FILE = '/tmp/.study-vault-db-synced'
-
-async function downloadDbFromBlob(): Promise<void> {
-  if (!process.env.VERCEL) return
-
-  try {
-    const { list } = await import('@vercel/blob')
-    const blobs = await list({ prefix: BLOB_KEY, limit: 1 })
-    if (blobs.blobs.length === 0) {
-      console.log('[db] no existing blob DB found — starting fresh')
-      return
-    }
-
-    const blobUrl = blobs.blobs[0].url
-    console.log('[db] downloading DB from blob:', blobUrl)
-
-    // Public blob — fetch directly
-    const response = await fetch(blobUrl)
-    if (!response.ok) {
-      console.error('[db] blob download failed:', response.status)
-      return
-    }
-
-    const buffer = Buffer.from(await response.arrayBuffer())
-    await fs.writeFile(DB_FILE_PATH, buffer)
-    console.log('[db] DB downloaded from blob, size:', buffer.length)
-  } catch (err) {
-    console.error('[db] blob download error (app will use ephemeral DB):', err instanceof Error ? err.message : err)
-  }
-}
-
 /**
- * Upload the SQLite DB to Vercel Blob. Called synchronously after writes.
- * This adds ~500ms latency to each write but ensures data persists across
- * cold starts and multiple function instances.
- */
-export async function persistDbToBlob(): Promise<void> {
-  if (!process.env.VERCEL) return
-
-  try {
-    const { put, list, del } = await import('@vercel/blob')
-    // Read the local DB file
-    const buffer = await fs.readFile(DB_FILE_PATH)
-
-    // Delete old blob(s) first (Vercel Blob doesn't overwrite by key)
-    try {
-      const oldBlobs = await list({ prefix: BLOB_KEY, limit: 10 })
-      for (const b of oldBlobs.blobs) {
-        await del(b.url)
-      }
-    } catch { /* ignore */ }
-
-    // Upload the new one
-    await put(BLOB_KEY, buffer, {
-      access: 'public',
-      contentType: 'application/octet-stream',
-    })
-    console.log('[db] DB uploaded to blob, size:', buffer.length)
-  } catch (err) {
-    console.error('[db] blob upload error (app continues with ephemeral DB):', err instanceof Error ? err.message : err)
-  }
-}
-
-/**
- * On Vercel serverless, the SQLite file in /tmp may be stale (another instance
- * may have written a newer version to Blob). We download the latest DB from
- * Vercel Blob on EVERY request to ensure consistency across instances.
+ * On Vercel serverless, the SQLite file in /tmp is empty on cold start.
+ * We apply the schema via raw SQL (embedded as SCHEMA_SQL string).
+ * Idempotent — uses CREATE TABLE IF NOT EXISTS.
  *
- * For a single-user demo, the ~200ms download latency is acceptable.
+ * NOTE: Blob sync removed — it was causing 403 errors and slowing every
+ * request by ~500ms. Data is ephemeral per warm serverless instance.
+ * The catch-all route ensures all requests share the same /tmp within
+ * a warm session. The seed user is recreated on every cold start with
+ * deterministic IDs.
  */
 export async function ensureSchema(): Promise<void> {
   if (!process.env.VERCEL) return
@@ -122,9 +53,6 @@ export async function ensureSchema(): Promise<void> {
   globalForPrisma.__dbReady = (async () => {
     try {
       await fs.mkdir('/tmp', { recursive: true }).catch(() => null)
-
-      // Download the latest DB from Blob (if it exists)
-      await downloadDbFromBlob()
 
       // Apply schema (idempotent — CREATE TABLE IF NOT EXISTS)
       const statements = SCHEMA_SQL
@@ -160,14 +88,17 @@ export async function ensureSchema(): Promise<void> {
 }
 
 /**
- * Download the latest DB from Vercel Blob BEFORE every request.
- * This ensures all instances have the most recent data.
- * Called by the catch-all route dispatch on EVERY request.
+ * No-op — blob sync removed to fix 403 errors and improve performance.
+ * Kept for backward compatibility with the catch-all route.
  */
 export async function syncDbFromBlob(): Promise<void> {
-  if (!process.env.VERCEL) return
-  // Only sync if the schema has been applied (ensureSchema ran first)
-  if (!globalForPrisma.__dbReady) await ensureSchema()
-  // Always re-download to get the latest data from other instances
-  await downloadDbFromBlob()
+  return
+}
+
+/**
+ * No-op — blob upload removed to fix 403 errors.
+ * Kept for backward compatibility with the catch-all route.
+ */
+export async function persistDbToBlob(): Promise<void> {
+  return
 }

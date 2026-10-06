@@ -148,10 +148,10 @@ export function DashboardView() {
             </Button>
           </div>
           {recent.length === 0 ? (
-            <EmptyHint text="No recently accessed files yet." />
+            <EmptyHint text="Nenhum arquivo acessado recentemente." />
           ) : (
             <ul className="divide-y divide-border">
-              {recent.map((r) => (
+              {recent.filter((r) => r.file).map((r) => (
                 <li key={r.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                   <FileTypeIcon mimeType={r.file.mimeType} extension={r.file.extension} />
                   <div className="flex-1 min-w-0">

@@ -19,23 +19,34 @@ export function Providers({ children }: { children: ReactNode }) {
       }),
   );
 
-  // Register service worker (PWA) — wrapped in try/catch to avoid
-  // crashing the app if registration fails.
+  // Register service worker that UNREGISTERS itself to clear stale caches.
+  // This runs once on mount in production only.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!('serviceWorker' in navigator)) return;
-    if (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_SW_DEV !== 'true') return;
-    const onLoad = () => {
+    if (process.env.NODE_ENV !== 'production') return;
+
+    const unregisterOld = async () => {
       try {
-        navigator.serviceWorker
-          .register('/sw.js', { scope: '/' })
-          .catch((err) => console.warn('[sw] register failed', err));
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+          console.log('[sw] unregistered old service worker');
+        }
       } catch (err) {
-        console.warn('[sw] registration error', err);
+        console.warn('[sw] unregister failed', err);
       }
     };
-    window.addEventListener('load', onLoad);
-    return () => window.removeEventListener('load', onLoad);
+
+    // Register the self-unregistering SW (clears old caches)
+    navigator.serviceWorker
+      .register('/sw.js?v=cleanup', { scope: '/' })
+      .then(() => {
+        // After registration, the SW will self-unregister on activate.
+        // Also manually unregister after a short delay.
+        setTimeout(unregisterOld, 1000);
+      })
+      .catch((err) => console.warn('[sw] register failed', err));
   }, []);
 
   return (
