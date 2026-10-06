@@ -21,7 +21,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db, ensureSchema, persistDbToBlob } from '@/lib/db';
+import { db, ensureSchema, persistDbToBlob, syncDbFromBlob } from '@/lib/db';
 import { Errors, toHttpError } from '@/lib/domain/errors';
 import {
   requireAuth,
@@ -122,12 +122,12 @@ async function dispatch(req: NextRequest, params: { path: string[] }, method: st
     // Ensure schema + seed user on every request (idempotent, cached per warm instance)
     await ensureSchema();
     await ensureSeedUser();
+    // Sync DB from Blob before EVERY request to get latest data from other instances
+    await syncDbFromBlob();
 
     const result = await routeRequest(req, params.path, method);
 
     // After any write operation, persist the DB to Vercel Blob SYNCHRONOUSLY.
-    // This adds ~500ms latency to writes but ensures data survives cold starts
-    // and is shared across function instances.
     if (['POST', 'PATCH', 'DELETE', 'PUT'].includes(method)) {
       await persistDbToBlob();
     }

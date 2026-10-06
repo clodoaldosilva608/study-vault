@@ -110,8 +110,11 @@ export async function persistDbToBlob(): Promise<void> {
 }
 
 /**
- * On Vercel serverless, the SQLite file in /tmp is empty on cold start.
- * We download the latest DB from Vercel Blob, then apply the schema if needed.
+ * On Vercel serverless, the SQLite file in /tmp may be stale (another instance
+ * may have written a newer version to Blob). We download the latest DB from
+ * Vercel Blob on EVERY request to ensure consistency across instances.
+ *
+ * For a single-user demo, the ~200ms download latency is acceptable.
  */
 export async function ensureSchema(): Promise<void> {
   if (!process.env.VERCEL) return
@@ -121,7 +124,7 @@ export async function ensureSchema(): Promise<void> {
     try {
       await fs.mkdir('/tmp', { recursive: true }).catch(() => null)
 
-      // Download the DB from Blob (if it exists)
+      // Download the latest DB from Blob (if it exists)
       await downloadDbFromBlob()
 
       // Apply schema (idempotent — CREATE TABLE IF NOT EXISTS)
@@ -155,4 +158,17 @@ export async function ensureSchema(): Promise<void> {
     }
   })()
   return globalForPrisma.__dbReady
+}
+
+/**
+ * Download the latest DB from Vercel Blob BEFORE every request.
+ * This ensures all instances have the most recent data.
+ * Called by the catch-all route dispatch on EVERY request.
+ */
+export async function syncDbFromBlob(): Promise<void> {
+  if (!process.env.VERCEL) return
+  // Only sync if the schema has been applied (ensureSchema ran first)
+  if (!globalForPrisma.__dbReady) await ensureSchema()
+  // Always re-download to get the latest data from other instances
+  await downloadDbFromBlob()
 }
