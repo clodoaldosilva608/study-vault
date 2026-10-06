@@ -6,12 +6,8 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
-  // Allow Prisma to be bundled server-side. Some Prisma engines need this.
-  serverExternalPackages: ["@prisma/client", "bcrypt"],
-  // Increase the function timeout for the schema-push setup endpoint.
-  experimental: {
-    // Allow server functions to run longer for the prisma db push on cold starts.
-  },
+  // Allow Prisma + bcrypt to be bundled server-side.
+  serverExternalPackages: ["@prisma/client", "bcrypt", "@node-rs/bcrypt"],
   // Make sure static files (manifest, sw.js, icons) are served as-is.
   async headers() {
     return [

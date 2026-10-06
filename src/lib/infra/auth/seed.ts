@@ -7,7 +7,7 @@
  * The plaintext password is never stored — only the bcrypt hash.
  */
 
-import { db } from '@/lib/db';
+import { db, ensureSchema } from '@/lib/db';
 import { hashPassword } from '@/lib/infra/auth/session';
 import { workspaceService } from '@/lib/services/workspace';
 import { audit } from '@/lib/infra/audit/audit';
@@ -15,9 +15,9 @@ import { AUDIT_ACTION } from '@/lib/domain/constants';
 import { generateRequestKey } from '@/lib/infra/auth/api-key';
 
 // Demo credentials — replace via the in-app "Change password" feature after first login.
-const SEED_EMAIL = 'clodoaldo608@gmail.com';
-const SEED_PASSWORD = '88677488';
-const SEED_NAME = 'Clodoaldo';
+const SEED_EMAIL = process.env.SEED_EMAIL || 'clodoaldo608@gmail.com';
+const SEED_PASSWORD = process.env.SEED_PASSWORD || '88677488';
+const SEED_NAME = process.env.SEED_NAME || 'Clodoaldo';
 
 let bootstrapPromise: Promise<void> | null = null;
 
@@ -25,6 +25,9 @@ export async function ensureSeedUser(): Promise<void> {
   if (bootstrapPromise) return bootstrapPromise;
   bootstrapPromise = (async () => {
     try {
+      // On Vercel cold start, the SQLite file is fresh — apply schema first.
+      await ensureSchema();
+
       const existing = await db.user.findUnique({
         where: { email: SEED_EMAIL.toLowerCase() },
       });
