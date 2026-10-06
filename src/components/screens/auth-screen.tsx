@@ -101,6 +101,14 @@ export function AuthScreen() {
               JARVIS agent API with explicit scopes per tool
             </li>
           </ul>
+          <div className="mt-4 p-3 rounded-md border border-amber-500/30 bg-amber-500/5 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+            <strong>Demo deployment note:</strong> This Vercel preview uses an
+            ephemeral SQLite database. Data persists within a warm serverless
+            instance but resets on cold starts. For production use, connect a
+            managed Postgres (Neon, Supabase, Vercel Postgres) via the
+            <code className="mx-1 px-1 py-0.5 rounded bg-muted-foreground/10">DATABASE_URL</code>
+            environment variable.
+          </div>
         </div>
 
         <div className="text-[11px] text-muted-foreground font-mono">
