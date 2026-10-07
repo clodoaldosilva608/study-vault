@@ -171,6 +171,7 @@ async function routeRequest(req: NextRequest, p: string[], method: string) {
       if (p[1] && !p[2] && method === 'PATCH') return handleUpdateFile(req, p[1]);
       if (p[1] && !p[2] && method === 'DELETE') return handleDeleteFile(p[1], q);
       if (p[1] && p[2] === 'download' && method === 'GET') return handleDownloadFile(p[1]);
+      if (p[1] && p[2] === 'view' && method === 'GET') return handleViewFile(p[1]);
     }
 
     // ---- SEARCH ----
@@ -580,6 +581,26 @@ async function handleDownloadFile(id: string) {
       'content-disposition': `attachment; filename="${filename}"`,
       'content-length': String(buffer.length),
       'cache-control': 'private, no-store',
+    },
+  });
+}
+
+/**
+ * View endpoint — returns the file with Content-Disposition: inline
+ * so the browser DISPLAYS it (PDF in iframe, image in img tag, etc.)
+ * instead of forcing a download.
+ */
+async function handleViewFile(id: string) {
+  const ctx = await requireAuth();
+  const { buffer, file } = await fileService.getDownloadBuffer(ctx, id);
+  const contentType = file.mimeType || 'application/octet-stream';
+  return new NextResponse(buffer, {
+    status: 200,
+    headers: {
+      'content-type': contentType,
+      'content-disposition': 'inline',
+      'content-length': String(buffer.length),
+      'cache-control': 'private, max-age=60',
     },
   });
 }

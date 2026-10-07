@@ -10,14 +10,9 @@ import {
 } from '@/components/common/simple-dialog';
 import { Button } from '@/components/ui/button';
 import {
-  X,
   Download,
   Printer,
   Share2,
-  FileText,
-  Image as ImageIcon,
-  FileVideo,
-  FileAudio,
   File as FileIcon,
   Loader2,
 } from 'lucide-react';
@@ -42,90 +37,68 @@ export function FilePreviewDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }) {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showShare, setShowShare] = useState(false);
 
   useEffect(() => {
     if (!open || !file) {
-      setBlobUrl(null);
       setTextContent(null);
       return;
     }
 
-    let revokable: string | null = null;
-
     async function loadFile() {
       setLoading(true);
-      try {
-        const res = await fetch(`/api/v1/files/${file!.id}/download`, {
-          credentials: 'include',
-        });
-        if (!res.ok) throw new Error('Falha ao carregar');
+      const kind = fileKind(file!.mimeType, file!.extension);
 
-        const kind = fileKind(file!.mimeType, file!.extension);
-
-        // For text-like files, read as text
-        if (
-          kind === 'text' ||
-          kind === 'markdown' ||
-          file!.mimeType.startsWith('text/') ||
-          file!.extension === 'md' ||
-          file!.extension === 'txt' ||
-          file!.extension === 'csv' ||
-          file!.extension === 'json'
-        ) {
-          const text = await res.text();
-          setTextContent(text);
-        } else {
-          // For binary files, create a blob URL
-          const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
-          revokable = url;
-          setBlobUrl(url);
+      // For text-like files, fetch as text
+      if (
+        kind === 'text' ||
+        kind === 'markdown' ||
+        file!.mimeType.startsWith('text/') ||
+        file!.extension === 'md' ||
+        file!.extension === 'txt' ||
+        file!.extension === 'csv' ||
+        file!.extension === 'json'
+      ) {
+        try {
+          const res = await fetch(`/api/v1/files/${file!.id}/view`, {
+            credentials: 'include',
+          });
+          if (res.ok) {
+            const text = await res.text();
+            setTextContent(text);
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
-      } finally {
-        setLoading(false);
       }
+      // For binary files, we use the /view URL directly in img/iframe/video tags
+      setLoading(false);
     }
 
     loadFile();
-
-    return () => {
-      if (revokable) URL.revokeObjectURL(revokable);
-    };
   }, [open, file]);
 
   if (!file) return null;
 
   const kind = fileKind(file.mimeType, file.extension);
+  // The /view endpoint returns Content-Disposition: inline so the browser
+  // displays the file instead of downloading it.
+  const viewUrl = `/api/v1/files/${file.id}/view`;
 
   const handlePrint = () => {
-    if (blobUrl) {
-      // Open in a new window for printing
-      const printWindow = window.open(blobUrl, '_blank');
-      if (printWindow) {
-        printWindow.onload = () => printWindow.print();
-      }
-    } else if (textContent) {
-      // For text files, create a printable HTML
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(`
-          <html><head><title>${file.name}</title>
-          <style>body{font-family:monospace;white-space:pre-wrap;padding:2rem;}</style>
-          </head><body>${textContent.replace(/</g, '&lt;')}</body></html>
-        `);
-        printWindow.document.close();
-        printWindow.print();
-      }
+    // Open the file in a new window for printing
+    const printWindow = window.open(viewUrl, '_blank');
+    if (printWindow) {
+      printWindow.onload = () => {
+        setTimeout(() => printWindow.print(), 500);
+      };
     }
   };
 
   const handleDownload = async () => {
+    // Use /download endpoint which forces download (Content-Disposition: attachment)
     const res = await fetch(`/api/v1/files/${file.id}/download`, {
       credentials: 'include',
     });
@@ -134,7 +107,9 @@ export function FilePreviewDialog({
     const a = document.createElement('a');
     a.href = url;
     a.download = file.name;
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     URL.revokeObjectURL(url);
   };
 
@@ -186,28 +161,31 @@ export function FilePreviewDialog({
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">Carregando...</p>
               </div>
-            ) : kind === 'image' && blobUrl ? (
+            ) : kind === 'image' ? (
               <img
-                src={blobUrl}
+                src={viewUrl}
                 alt={file.name}
                 className="max-w-full max-h-[70vh] object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
               />
-            ) : kind === 'pdf' && blobUrl ? (
+            ) : kind === 'pdf' ? (
               <iframe
-                src={blobUrl}
+                src={viewUrl}
                 className="w-full h-[70vh] border-0"
                 title={file.name}
               />
-            ) : kind === 'video' && blobUrl ? (
+            ) : kind === 'video' ? (
               <video
-                src={blobUrl}
+                src={viewUrl}
                 controls
                 className="max-w-full max-h-[70vh]"
               />
-            ) : kind === 'audio' && blobUrl ? (
-              <div className="flex flex-col items-center gap-4 py-12">
-                <FileAudio className="h-16 w-16 text-muted-foreground" />
-                <audio src={blobUrl} controls />
+            ) : kind === 'audio' ? (
+              <div className="flex flex-col items-center gap-4 py-12 w-full px-8">
+                <FileIcon className="h-16 w-16 text-muted-foreground" />
+                <audio src={viewUrl} controls className="w-full" />
                 <p className="text-sm font-medium">{file.name}</p>
               </div>
             ) : (kind === 'text' || kind === 'markdown') && textContent !== null ? (
