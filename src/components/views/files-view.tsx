@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import {
   Upload,
   FolderPlus,
+  FolderDown,
   Folder,
   FolderOpen,
   ChevronRight,
@@ -32,6 +33,7 @@ import {
   RenameDialog,
   MoveDialog,
 } from '@/components/files/dialogs';
+import { FolderImportDialog } from '@/components/files/folder-import-dialog';
 import { cn } from '@/lib/utils';
 
 type FolderItem = {
@@ -167,6 +169,7 @@ export function FilesView() {
 
   const [showUpload, setShowUpload] = useState(false);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [showFolderImport, setShowFolderImport] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ type: 'file' | 'folder'; id: string; name: string } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ type: 'file' | 'folder'; id: string } | null>(null);
 
@@ -364,6 +367,9 @@ export function FilesView() {
           <Button variant="outline" size="sm" onClick={() => setShowCreateFolder(true)} className="gap-2">
             <FolderPlus className="h-3.5 w-3.5" /> Nova pasta
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowFolderImport(true)} className="gap-2">
+            <FolderDown className="h-3.5 w-3.5" /> Importar pasta
+          </Button>
           <Button size="sm" onClick={() => setShowUpload(true)} className="gap-2">
             <Upload className="h-3.5 w-3.5" /> Enviar
           </Button>
@@ -556,6 +562,12 @@ export function FilesView() {
         onOpenChange={setShowUpload}
         folderId={currentFolderId}
         onUploaded={refresh}
+      />
+      <FolderImportDialog
+        open={showFolderImport}
+        onOpenChange={setShowFolderImport}
+        parentId={currentFolderId}
+        onImported={refresh}
       />
       <CreateFolderDialog
         open={showCreateFolder}
