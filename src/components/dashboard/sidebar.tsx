@@ -19,8 +19,7 @@ import {
 import { useAppStore, type ViewKey } from '@/lib/store/app-store';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { SimpleSheet } from '@/components/common/simple-dialog';
 import { cn } from '@/lib/utils';
 
 type NavItem = {
@@ -169,20 +168,12 @@ export function MobileSidebar() {
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
 
   return (
-    <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-      <SheetContent
-        side="left"
-        className="w-72 p-0 bg-sidebar border-sidebar-border flex flex-col"
-      >
-        <SheetHeader className="sr-only">
-          <SheetTitle>Menu de navegação</SheetTitle>
-        </SheetHeader>
-        <BrandHeader onClose={() => setSidebarOpen(false)} />
-        <ScrollArea className="flex-1">
-          <NavContent onNavigate={() => setSidebarOpen(false)} />
-        </ScrollArea>
-        <UserFooter />
-      </SheetContent>
-    </Sheet>
+    <SimpleSheet open={sidebarOpen} onOpenChange={setSidebarOpen} side="left">
+      <BrandHeader onClose={() => setSidebarOpen(false)} />
+      <div className="flex-1 overflow-y-auto">
+        <NavContent onNavigate={() => setSidebarOpen(false)} />
+      </div>
+      <UserFooter />
+    </SimpleSheet>
   );
 }

@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  SimpleDialog,
+  SimpleDialogHeader,
+  SimpleDialogTitle,
+  SimpleDialogBody,
+  SimpleDialogFooter,
+  SimpleDialogClose,
+} from '@/components/common/simple-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -51,7 +51,7 @@ export function CreateFolderDialog({
         name: name.trim(),
         parentId: parentId ?? null,
       });
-      toast.success(`Folder "${name.trim()}" created`);
+      toast.success(`Pasta "${name.trim()}" criada`);
       onCreated?.();
       onOpenChange(false);
     } catch (err) {
@@ -63,41 +63,43 @@ export function CreateFolderDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Folder className="h-4 w-4 text-primary" /> Create folder
-          </DialogTitle>
-          <DialogDescription>
-            {parentId ? 'Sub-folder of the current location.' : 'Top-level folder in workspace.'}
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleCreate} className="space-y-3">
+    <SimpleDialog open={open} onOpenChange={onOpenChange}>
+      <SimpleDialogClose onClose={() => onOpenChange(false)} />
+      <SimpleDialogHeader>
+        <div className="flex items-center gap-2">
+          <Folder className="h-4 w-4 text-primary" />
+          <SimpleDialogTitle>Criar pasta</SimpleDialogTitle>
+        </div>
+      </SimpleDialogHeader>
+      <form onSubmit={handleCreate}>
+        <SimpleDialogBody>
           <div className="space-y-1.5">
-            <Label htmlFor="folder-name">Name</Label>
+            <Label htmlFor="folder-name">Nome</Label>
             <Input
               id="folder-name"
-              placeholder="e.g. Direito Constitucional"
+              placeholder="Ex: Direito Constitucional"
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoFocus
               required
               maxLength={200}
             />
+            <p className="text-[11px] text-muted-foreground">
+              {parentId ? 'Subpasta da pasta atual.' : 'Pasta raiz do workspace.'}
+            </p>
           </div>
-          <DialogFooter>
-            <Button variant="ghost" type="button" onClick={() => onOpenChange(false)} disabled={loading}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading || !name.trim()} className="gap-2">
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Create
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </SimpleDialogBody>
+        <SimpleDialogFooter>
+          <Button variant="ghost" type="button" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={loading || !name.trim()} className="gap-2">
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            Criar
+          </Button>
+        </SimpleDialogFooter>
+      </form>
+    </SimpleDialog>
   );
 }
 
@@ -106,7 +108,7 @@ export function RenameDialog({
   onOpenChange,
   initialName,
   onConfirm,
-  title = 'Rename',
+  title = 'Renomear',
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -137,12 +139,13 @@ export function RenameDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleConfirm} className="space-y-3">
+    <SimpleDialog open={open} onOpenChange={onOpenChange}>
+      <SimpleDialogClose onClose={() => onOpenChange(false)} />
+      <SimpleDialogHeader>
+        <SimpleDialogTitle>{title}</SimpleDialogTitle>
+      </SimpleDialogHeader>
+      <form onSubmit={handleConfirm}>
+        <SimpleDialogBody>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -150,18 +153,18 @@ export function RenameDialog({
             required
             maxLength={200}
           />
-          <DialogFooter>
-            <Button variant="ghost" type="button" onClick={() => onOpenChange(false)} disabled={loading}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading || !name.trim()} className="gap-2">
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </SimpleDialogBody>
+        <SimpleDialogFooter>
+          <Button variant="ghost" type="button" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={loading || !name.trim()} className="gap-2">
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            Salvar
+          </Button>
+        </SimpleDialogFooter>
+      </form>
+    </SimpleDialog>
   );
 }
 
@@ -204,25 +207,26 @@ export function MoveDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Move to folder</DialogTitle>
-          <DialogDescription>Select a destination folder.</DialogDescription>
-        </DialogHeader>
-        <div className="max-h-80 overflow-y-auto space-y-1 pr-1">
+    <SimpleDialog open={open} onOpenChange={onOpenChange}>
+      <SimpleDialogClose onClose={() => onOpenChange(false)} />
+      <SimpleDialogHeader>
+        <SimpleDialogTitle>Mover para pasta</SimpleDialogTitle>
+      </SimpleDialogHeader>
+      <SimpleDialogBody>
+        <p className="text-xs text-muted-foreground mb-3">Selecione a pasta de destino.</p>
+        <div className="max-h-80 overflow-y-auto space-y-1">
           <button
             onClick={() => setSelected(null)}
             className={`w-full text-left px-3 py-2 rounded-md text-sm border ${
               selected === null ? 'border-primary bg-primary/8' : 'border-border hover:bg-accent/50'
             }`}
           >
-            Root (no folder)
+            Raiz (sem pasta)
           </button>
           {loading ? (
-            <div className="py-6 text-center text-xs text-muted-foreground">Loading…</div>
+            <div className="py-6 text-center text-xs text-muted-foreground">Carregando…</div>
           ) : folders.length === 0 ? (
-            <div className="py-6 text-center text-xs text-muted-foreground">No folders yet.</div>
+            <div className="py-6 text-center text-xs text-muted-foreground">Nenhuma pasta encontrada.</div>
           ) : (
             folders.map((f) => (
               <button
@@ -238,16 +242,16 @@ export function MoveDialog({
             ))
           )}
         </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={moving}>
-            Cancel
-          </Button>
-          <Button onClick={handleConfirm} disabled={moving} className="gap-2">
-            {moving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Move here
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </SimpleDialogBody>
+      <SimpleDialogFooter>
+        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={moving}>
+          Cancelar
+        </Button>
+        <Button onClick={handleConfirm} disabled={moving} className="gap-2">
+          {moving && <Loader2 className="h-4 w-4 animate-spin" />}
+          Mover
+        </Button>
+      </SimpleDialogFooter>
+    </SimpleDialog>
   );
 }

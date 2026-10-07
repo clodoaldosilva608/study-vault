@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  SimpleDialog,
+  SimpleDialogHeader,
+  SimpleDialogTitle,
+  SimpleDialogBody,
+  SimpleDialogFooter,
+  SimpleDialogClose,
+} from '@/components/common/simple-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -143,20 +143,15 @@ export function UploadDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) { setFiles([]); setFileObjs([]); } }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Upload className="h-4 w-4 text-primary" /> Upload files
-          </DialogTitle>
-          <DialogDescription>
-            {folderId
-              ? 'Files will be uploaded to the current folder.'
-              : 'Files will be uploaded to the workspace root.'}
-            <br />
-            Max 100 MB per file. Storage quota is enforced.
-          </DialogDescription>
-        </DialogHeader>
+    <SimpleDialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) { setFiles([]); setFileObjs([]); } }} className="max-w-lg">
+      <SimpleDialogClose onClose={() => onOpenChange(false)} />
+      <SimpleDialogHeader>
+        <div className="flex items-center gap-2">
+          <Upload className="h-4 w-4 text-primary" />
+          <SimpleDialogTitle>Enviar arquivos</SimpleDialogTitle>
+        </div>
+      </SimpleDialogHeader>
+      <SimpleDialogBody>
 
         <div className="space-y-3">
           <label
@@ -211,10 +206,11 @@ export function UploadDialog({
             </ul>
           )}
         </div>
+      </SimpleDialogBody>
 
-        <DialogFooter>
+      <SimpleDialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={uploading}>
-            Cancel
+            Cancelar
           </Button>
           <Button
             onClick={uploadAllV2}
@@ -222,11 +218,10 @@ export function UploadDialog({
             className="gap-2"
           >
             {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {uploading ? 'Uploading…' : `Upload ${files.length || ''}`}
+            {uploading ? 'Enviando…' : `Enviar ${files.length || ''}`}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SimpleDialogFooter>
+    </SimpleDialog>
   );
 }
 

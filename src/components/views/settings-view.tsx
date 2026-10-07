@@ -7,13 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  SimpleDialog,
+  SimpleDialogHeader,
+  SimpleDialogTitle,
+  SimpleDialogBody,
+  SimpleDialogFooter,
+  SimpleDialogClose,
+} from '@/components/common/simple-dialog';
 import { useAppStore } from '@/lib/store/app-store';
 import { useTheme } from 'next-themes';
 import { formatBytes } from '@/lib/utils/file';
@@ -240,26 +240,28 @@ function ChangePasswordDialog({
   }
 
   return (
-    <Dialog
+    <SimpleDialog
       open={open}
       onOpenChange={(o) => {
         onOpenChange(o);
         if (!o) reset();
       }}
     >
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <KeyRound className="h-4 w-4 text-primary" /> Change password
-          </DialogTitle>
-          <DialogDescription>
-            Enter your current password, then choose a new one. All other sessions
-            will be signed out.
-          </DialogDescription>
-        </DialogHeader>
+      <SimpleDialogClose onClose={() => onOpenChange(false)} />
+      <SimpleDialogHeader>
+        <div className="flex items-center gap-2">
+          <KeyRound className="h-4 w-4 text-primary" />
+          <SimpleDialogTitle>Trocar senha</SimpleDialogTitle>
+        </div>
+      </SimpleDialogHeader>
+      <SimpleDialogBody>
+        <p className="text-xs text-muted-foreground mb-3">
+          Digite sua senha atual e escolha uma nova. Todas as outras sessões
+          serão encerradas.
+        </p>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="cur-pwd">Current password</Label>
+            <Label htmlFor="cur-pwd">Senha atual</Label>
             <Input
               id="cur-pwd"
               type="password"
@@ -270,7 +272,7 @@ function ChangePasswordDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="new-pwd">New password</Label>
+            <Label htmlFor="new-pwd">Nova senha</Label>
             <Input
               id="new-pwd"
               type="password"
@@ -280,10 +282,10 @@ function ChangePasswordDialog({
               value={next}
               onChange={(e) => setNext(e.target.value)}
             />
-            <p className="text-[11px] text-muted-foreground">Minimum 8 characters.</p>
+            <p className="text-[11px] text-muted-foreground">Mínimo 8 caracteres.</p>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="confirm-pwd">Confirm new password</Label>
+            <Label htmlFor="confirm-pwd">Confirmar nova senha</Label>
             <Input
               id="confirm-pwd"
               type="password"
@@ -294,14 +296,14 @@ function ChangePasswordDialog({
               onChange={(e) => setConfirm(e.target.value)}
             />
           </div>
-          <DialogFooter>
+          <SimpleDialogFooter>
             <Button
               variant="ghost"
               type="button"
               onClick={() => onOpenChange(false)}
               disabled={loading}
             >
-              Cancel
+              Cancelar
             </Button>
             <Button
               type="submit"
@@ -309,11 +311,11 @@ function ChangePasswordDialog({
               className="gap-1.5"
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Change password
+              Trocar senha
             </Button>
-          </DialogFooter>
+          </SimpleDialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SimpleDialogBody>
+    </SimpleDialog>
   );
 }

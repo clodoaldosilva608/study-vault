@@ -9,13 +9,13 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  SimpleDialog,
+  SimpleDialogHeader,
+  SimpleDialogTitle,
+  SimpleDialogBody,
+  SimpleDialogFooter,
+  SimpleDialogClose,
+} from '@/components/common/simple-dialog';
 import {
   Bot,
   Copy,
@@ -329,58 +329,62 @@ export function JarvisView() {
       </Card>
 
       {/* Issue credential dialog */}
-      <Dialog open={showNew} onOpenChange={setShowNew}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Key className="h-4 w-4 text-primary" /> Issue agent credential
-            </DialogTitle>
-            <DialogDescription>
-              Issues a new API key with default read-only scopes. The plain token is shown only once.
-            </DialogDescription>
-          </DialogHeader>
+      <SimpleDialog open={showNew} onOpenChange={setShowNew}>
+        <SimpleDialogClose onClose={() => setShowNew(false)} />
+        <SimpleDialogHeader>
+          <div className="flex items-center gap-2">
+            <Key className="h-4 w-4 text-primary" />
+            <SimpleDialogTitle>Emitir credencial</SimpleDialogTitle>
+          </div>
+        </SimpleDialogHeader>
+        <SimpleDialogBody>
+          <p className="text-xs text-muted-foreground mb-3">
+            Emite uma nova API key com escopos padrão de leitura. O token só é exibido uma vez.
+          </p>
           <div className="space-y-2">
-            <Label htmlFor="cred-name">Friendly name</Label>
+            <Label htmlFor="cred-name">Nome amigável</Label>
             <Input
               id="cred-name"
-              placeholder="e.g. JARVIS Production"
+              placeholder="Ex: JARVIS Production"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               autoFocus
             />
           </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowNew(false)}>Cancel</Button>
-            <Button onClick={issue} disabled={creating || !newName.trim()} className="gap-1.5">
-              {creating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Issue
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </SimpleDialogBody>
+        <SimpleDialogFooter>
+          <Button variant="ghost" onClick={() => setShowNew(false)}>Cancelar</Button>
+          <Button onClick={issue} disabled={creating || !newName.trim()} className="gap-1.5">
+            {creating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Emitir
+          </Button>
+        </SimpleDialogFooter>
+      </SimpleDialog>
 
       {/* Issued token display */}
-      <Dialog open={!!issuedToken} onOpenChange={(o) => !o && setIssuedToken(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-emerald-500" /> Credential issued
-            </DialogTitle>
-            <DialogDescription>
-              Copy this token now. For security, it will not be shown again.
-            </DialogDescription>
-          </DialogHeader>
+      <SimpleDialog open={!!issuedToken} onOpenChange={(o) => !o && setIssuedToken(null)}>
+        <SimpleDialogClose onClose={() => setIssuedToken(null)} />
+        <SimpleDialogHeader>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+            <SimpleDialogTitle>Credencial emitida</SimpleDialogTitle>
+          </div>
+        </SimpleDialogHeader>
+        <SimpleDialogBody>
+          <p className="text-xs text-muted-foreground mb-3">
+            Copie este token agora. Por segurança, não será exibido novamente.
+          </p>
           <div className="bg-muted/50 border rounded-md p-3 font-mono text-xs break-all">
             {issuedToken}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={copyToken} className="gap-1.5">
-              <Copy className="h-3.5 w-3.5" /> Copy token
-            </Button>
-            <Button onClick={() => setIssuedToken(null)}>Done</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </SimpleDialogBody>
+        <SimpleDialogFooter>
+          <Button variant="outline" onClick={copyToken} className="gap-1.5">
+            <Copy className="h-3.5 w-3.5" /> Copiar token
+          </Button>
+          <Button onClick={() => setIssuedToken(null)}>Concluído</Button>
+        </SimpleDialogFooter>
+      </SimpleDialog>
     </div>
   );
 }
