@@ -13,14 +13,13 @@ import {
   Copy,
   Check,
   Mail,
-  Facebook,
-  Twitter,
-  Linkedin,
-  Telegram,
-  Reddit,
   ExternalLink,
   MessageCircle,
+  Send,
+  Globe,
+  Hash,
   Bookmark,
+  ThumbsUp,
 } from 'lucide-react';
 import { useState } from 'react';
 import { simpleToast as toast } from '@/components/common/simple-toast';
@@ -41,7 +40,7 @@ const SHARE_OPTIONS: ShareOption[] = [
   },
   {
     name: 'Telegram',
-    icon: Telegram,
+    icon: Send,
     color: 'text-blue-500',
     getUrl: (url, text) => `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
   },
@@ -53,25 +52,25 @@ const SHARE_OPTIONS: ShareOption[] = [
   },
   {
     name: 'Twitter / X',
-    icon: Twitter,
+    icon: Hash,
     color: 'text-sky-500',
     getUrl: (url, text) => `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
   },
   {
     name: 'Facebook',
-    icon: Facebook,
+    icon: ThumbsUp,
     color: 'text-blue-600',
     getUrl: (url, text) => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
   },
   {
     name: 'LinkedIn',
-    icon: Linkedin,
+    icon: Globe,
     color: 'text-blue-700',
     getUrl: (url, text) => `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
   },
   {
     name: 'Reddit',
-    icon: Reddit,
+    icon: Globe,
     color: 'text-orange-500',
     getUrl: (url, text) => `https://www.reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(text)}`,
   },
