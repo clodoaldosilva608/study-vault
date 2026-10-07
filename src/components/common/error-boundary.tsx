@@ -10,58 +10,59 @@ type Props = {
 type State = {
   hasError: boolean;
   error: Error | null;
-  retryCount: number;
 };
 
 /**
- * Global error boundary — catches client-side render errors and displays
- * a friendly message instead of the generic Next.js error overlay.
+ * ErrorBoundary — catches client-side render errors.
  *
- * SPECIAL HANDLING for 'removeChild' / NotFoundError:
- * These errors are DOM reconciliation issues (often caused by portals,
- * react-markdown, or browser extensions modifying the DOM). They don't
- * corrupt app state — the virtual DOM and real DOM are just out of sync.
- * A remount fixes it. So we auto-retry up to 3 times before showing
- * the error UI.
+ * For 'removeChild' / NotFoundError errors: these are DOM reconciliation
+ * issues caused by portals. We SILENTLY SWALLOW them (return null from
+ * getDerivedStateFromError) WITHOUT calling setState in componentDidCatch.
+ * This prevents infinite retry loops.
+ *
+ * For other errors: show the fallback UI.
  */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null, retryCount: 0 };
+    this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error: Error): Partial<State> {
+  static getDerivedStateFromError(error: Error): Partial<State> | null {
     const isRemoveChildError =
       error.name === 'NotFoundError' ||
       error.message.includes('removeChild') ||
       error.message.includes('not a child of this node');
 
-    // For removeChild errors, return null (no error state) to auto-retry
-    // The componentDidCatch will handle the retry logic
+    // For removeChild errors: swallow silently (return null = no state change)
+    // React will continue rendering the children as if nothing happened.
     if (isRemoveChildError) {
       return null;
     }
 
-    return { hasError: true, error, retryCount: 0 };
+    // For all other errors: show the fallback UI
+    return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, _errorInfo: ErrorInfo) {
     const isRemoveChildError =
       error.name === 'NotFoundError' ||
       error.message.includes('removeChild') ||
       error.message.includes('not a child of this node');
 
-    if (isRemoveChildError && this.state.retryCount < 3) {
-      console.warn('[ErrorBoundary] DOM reconciliation error — auto-retrying', this.state.retryCount + 1);
-      this.setState((prev) => ({ hasError: false, error: null, retryCount: prev.retryCount + 1 }));
+    if (isRemoveChildError) {
+      // Do NOT call setState — just log. Calling setState would trigger
+      // a re-render which could cause another removeChild error, creating
+      // an infinite loop.
+      console.warn('[ErrorBoundary] DOM reconciliation error swallowed');
       return;
     }
 
-    console.error('[ErrorBoundary] caught:', error, errorInfo);
+    console.error('[ErrorBoundary] caught:', error);
   }
 
   reset = () => {
-    this.setState({ hasError: false, error: null, retryCount: 0 });
+    this.setState({ hasError: false, error: null });
   };
 
   render() {

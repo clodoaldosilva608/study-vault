@@ -40,6 +40,7 @@ type StoreState = {
   selectedFileIds: Set<string>;
   sidebarOpen: boolean;
   viewHistory: ViewKey[];
+  _bootstrapping: boolean;
   bootstrap: () => Promise<void>;
   setView: (v: ViewKey) => void;
   goBack: () => void;
@@ -62,9 +63,12 @@ export const useAppStore = create<StoreState>((set, get) => ({
   selectedFileIds: new Set<string>(),
   sidebarOpen: false, // mobile drawer closed by default
   viewHistory: [],
+  _bootstrapping: false,
 
   bootstrap: async () => {
-    set({ loading: true });
+    // Guard: prevent multiple concurrent bootstrap calls
+    if (get()._bootstrapping) return;
+    set({ _bootstrapping: true, loading: true });
     try {
       const data = await api.get<{
         user: AuthUser | null;
@@ -76,9 +80,16 @@ export const useAppStore = create<StoreState>((set, get) => ({
         workspace: data.workspace,
         role: data.role,
         loading: false,
+        _bootstrapping: false,
       });
     } catch {
-      set({ user: null, workspace: null, role: null, loading: false });
+      set({
+        user: null,
+        workspace: null,
+        role: null,
+        loading: false,
+        _bootstrapping: false,
+      });
     }
   },
 
