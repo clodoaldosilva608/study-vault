@@ -117,10 +117,16 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120; // 2 minutes for migrate endpoint
 
+// Cache: only run ensureSeedUser once per warm instance
+let _seeded = false;
+
 async function dispatch(req: NextRequest, params: { path: string[] }, method: string) {
   try {
-    // ensureSeedUser creates the bootstrap user + PRF folders if missing.
-    await ensureSeedUser();
+    // Only run seed check once per warm instance (not on every request!)
+    if (!_seeded) {
+      await ensureSeedUser();
+      _seeded = true;
+    }
 
     return await routeRequest(req, params.path, method);
   } catch (err) {

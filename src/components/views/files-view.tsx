@@ -23,6 +23,9 @@ import {
   Home,
   Loader2,
   Check,
+  Share2,
+  Printer,
+  Eye,
 } from 'lucide-react';
 import { simpleToast as toast } from '@/components/common/simple-toast';
 import { formatBytes, formatRelative } from '@/lib/utils/file';
@@ -34,6 +37,7 @@ import {
   MoveDialog,
 } from '@/components/files/dialogs';
 import { FolderImportDialog } from '@/components/files/folder-import-dialog';
+import { FilePreviewDialog } from '@/components/files/file-preview-dialog';
 import { cn } from '@/lib/utils';
 
 type FolderItem = {
@@ -170,6 +174,7 @@ export function FilesView() {
   const [showUpload, setShowUpload] = useState(false);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [showFolderImport, setShowFolderImport] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   const [renameTarget, setRenameTarget] = useState<{ type: 'file' | 'folder'; id: string; name: string } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ type: 'file' | 'folder'; id: string } | null>(null);
 
@@ -479,7 +484,7 @@ export function FilesView() {
                 draggable
                 onDragStart={(e) => onFileDragStart(e, file.id)}
                 onDragEnd={() => setDraggingFileIds(new Set())}
-                onClick={() => toggleSelect(file.id)}
+                onClick={() => setPreviewFile(file)}
                 className={cn(
                   'group relative flex flex-col gap-2 p-3 rounded-xl border bg-card hover:bg-accent/30 hover:border-border/80 transition-all cursor-pointer min-h-[100px]',
                   isSel ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-border/60',
@@ -510,9 +515,19 @@ export function FilesView() {
                       {(close) => (
                         <>
                           <MenuItem
+                            icon={<Eye className="h-3.5 w-3.5" />}
+                            label="Visualizar"
+                            onClick={() => { setPreviewFile(file); close(); }}
+                          />
+                          <MenuItem
                             icon={<Download className="h-3.5 w-3.5" />}
                             label="Baixar"
                             onClick={() => { handleDownload(file); close(); }}
+                          />
+                          <MenuItem
+                            icon={<Share2 className="h-3.5 w-3.5" />}
+                            label="Compartilhar"
+                            onClick={() => { setPreviewFile(file); close(); }}
                           />
                           <MenuItem
                             icon={<Pencil className="h-3.5 w-3.5" />}
@@ -608,6 +623,11 @@ export function FilesView() {
           }}
         />
       )}
+      <FilePreviewDialog
+        file={previewFile}
+        open={!!previewFile}
+        onOpenChange={(o) => !o && setPreviewFile(null)}
+      />
     </div>
   );
 }
