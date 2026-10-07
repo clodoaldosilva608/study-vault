@@ -1,15 +1,11 @@
+import 'server-only';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { randomBytes, createHash } from 'crypto';
 import { Errors } from '@/lib/domain/errors';
 
-const STORAGE_ROOT =
-  process.env.STORAGE_ROOT ||
-  (process.env.VERCEL ? '/tmp/study-vault-storage' : '/home/z/my-project/storage');
-
 /**
  * Storage adapter interface — abstracts the file storage backend.
- * Swap implementations (LocalFsStorageAdapter → SupabaseStorageAdapter) without touching domain code.
  */
 export interface IStorageAdapter {
   save(
@@ -25,10 +21,6 @@ export interface IStorageAdapter {
 
   exists(storagePath: string): Promise<boolean>;
 
-  /**
-   * Returns a signed URL or, in the local adapter, a server-relative path
-   * the caller can use to fetch the file via a dedicated endpoint.
-   */
   getSignedUrl(storagePath: string, ttlSeconds?: number): Promise<string>;
 }
 
@@ -37,23 +29,29 @@ function sha256(buf: Buffer): string {
 }
 
 /**
- * Local filesystem adapter. Layout:
- *   {STORAGE_ROOT}/{workspaceId}/files/{fileId}/{filename}
+ * Supabase Storage adapter — stores files in Supabase Storage bucket.
+ * This is PERSISTENT across serverless instances, unlike the local FS adapter.
  *
- * The filename is sanitized and prefixed with a random token to prevent
- * collisions and traversal attacks. The client NEVER controls the final path.
+ * Uses the Supabase REST API directly (no SDK needed).
+ * The storagePath is just the object key within the bucket.
  */
-export class LocalFsStorageAdapter implements IStorageAdapter {
-  constructor(private root: string = STORAGE_ROOT) {}
+class SupabaseStorageAdapter implements IStorageAdapter {
+  private supabaseUrl: string;
+  private serviceKey: string;
+  private bucket: string;
 
-  private resolvePath(storagePath: string): string {
-    const abs = path.join(this.root, storagePath);
-    const normalizedRoot = path.resolve(this.root);
-    const normalizedAbs = path.resolve(abs);
-    if (!normalizedAbs.startsWith(normalizedRoot)) {
-      throw Errors.badRequest('Invalid storage path');
+  constructor() {
+    this.supabaseUrl = process.env.SUPABASE_URL || 'https://knqvhmowhbremhboqdip.supabase.co';
+    this.serviceKey = process.env.SUPABASE_SERVICE_KEY || '';
+    this.bucket = process.env.SUPABASE_BUCKET || 'study-vault-files';
+
+    if (!this.serviceKey) {
+      console.warn('[storage] SUPABASE_SERVICE_KEY not set — falling back to local FS');
     }
-    return normalizedAbs;
+  }
+
+  private get isConfigured(): boolean {
+    return !!this.serviceKey;
   }
 
   async save(
@@ -62,16 +60,12 @@ export class LocalFsStorageAdapter implements IStorageAdapter {
     bytes: Buffer | NodeJS.ReadableStream,
     originalName: string,
   ): Promise<{ storagePath: string; sizeBytes: number; checksum: string }> {
-    // Sanitize filename — keep extension only, generate random suffix
+    // Sanitize filename
     const ext = path.extname(originalName).toLowerCase().slice(0, 16);
     const safeExt = /^[\w.-]+$/.test(ext) ? ext : '';
     const random = randomBytes(8).toString('hex');
     const filename = `${fileId}-${random}${safeExt}`;
-
-    const relPath = path.join(workspaceId, 'files', fileId, filename);
-    const absPath = this.resolvePath(relPath);
-
-    await fs.mkdir(path.dirname(absPath), { recursive: true });
+    const objectKey = `${workspaceId}/files/${fileId}/${filename}`;
 
     let buffer: Buffer;
     if (Buffer.isBuffer(bytes)) {
@@ -84,50 +78,118 @@ export class LocalFsStorageAdapter implements IStorageAdapter {
       buffer = Buffer.concat(chunks);
     }
 
-    await fs.writeFile(absPath, buffer);
-
     const checksum = sha256(buffer);
+
+    if (this.isConfigured) {
+      // Upload to Supabase Storage
+      const res = await fetch(
+        `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${objectKey}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.serviceKey}`,
+            'Content-Type': 'application/octet-stream',
+            'x-upsert': 'true',
+          },
+          body: buffer,
+        },
+      );
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('[storage] Supabase upload failed:', res.status, errText);
+        throw Errors.internal(`Storage upload failed: ${res.status}`);
+      }
+    } else {
+      // Fallback: local filesystem
+      const STORAGE_ROOT = process.env.VERCEL ? '/tmp/study-vault-storage' : '/home/z/my-project/storage';
+      const absPath = path.join(STORAGE_ROOT, objectKey);
+      await fs.mkdir(path.dirname(absPath), { recursive: true });
+      await fs.writeFile(absPath, buffer);
+    }
+
     return {
-      storagePath: relPath,
+      storagePath: objectKey,
       sizeBytes: buffer.length,
       checksum,
     };
   }
 
   async read(storagePath: string): Promise<Buffer> {
-    const absPath = this.resolvePath(storagePath);
-    try {
-      return await fs.readFile(absPath);
-    } catch {
-      throw Errors.notFound('File content');
+    if (this.isConfigured) {
+      // Download from Supabase Storage
+      const res = await fetch(
+        `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${storagePath}`,
+        {
+          headers: { Authorization: `Bearer ${this.serviceKey}` },
+        },
+      );
+      if (!res.ok) {
+        throw Errors.notFound('File content');
+      }
+      const arrayBuffer = await res.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } else {
+      // Fallback: local filesystem
+      const STORAGE_ROOT = process.env.VERCEL ? '/tmp/study-vault-storage' : '/home/z/my-project/storage';
+      const absPath = path.join(STORAGE_ROOT, storagePath);
+      try {
+        return await fs.readFile(absPath);
+      } catch {
+        throw Errors.notFound('File content');
+      }
     }
   }
 
   async delete(storagePath: string): Promise<void> {
-    const absPath = this.resolvePath(storagePath);
-    try {
-      await fs.rm(path.dirname(absPath), { recursive: true, force: true });
-    } catch {
-      // ignore — already gone
+    if (this.isConfigured) {
+      try {
+        await fetch(
+          `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${storagePath}`,
+          {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${this.serviceKey}` },
+          },
+        );
+      } catch {
+        // ignore
+      }
+    } else {
+      const STORAGE_ROOT = process.env.VERCEL ? '/tmp/study-vault-storage' : '/home/z/my-project/storage';
+      const absPath = path.join(STORAGE_ROOT, storagePath);
+      try {
+        await fs.rm(path.dirname(absPath), { recursive: true, force: true });
+      } catch {
+        // ignore
+      }
     }
   }
 
   async exists(storagePath: string): Promise<boolean> {
-    try {
-      await fs.access(this.resolvePath(storagePath));
-      return true;
-    } catch {
-      return false;
+    if (this.isConfigured) {
+      const res = await fetch(
+        `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${storagePath}`,
+        {
+          method: 'HEAD',
+          headers: { Authorization: `Bearer ${this.serviceKey}` },
+        },
+      );
+      return res.ok;
+    } else {
+      const STORAGE_ROOT = process.env.VERCEL ? '/tmp/study-vault-storage' : '/home/z/my-project/storage';
+      try {
+        await fs.access(path.join(STORAGE_ROOT, storagePath));
+        return true;
+      } catch {
+        return false;
+      }
     }
   }
 
   async getSignedUrl(storagePath: string): Promise<string> {
-    // Local adapter returns a relative download path; the API route signs it
-    // server-side using the auth context.
     const id = path.basename(path.dirname(storagePath));
     return `/api/v1/files/${id}/download`;
   }
 }
 
-// Singleton — swap implementation here when migrating to Supabase.
-export const storage: IStorageAdapter = new LocalFsStorageAdapter();
+// Singleton — uses Supabase Storage with local FS fallback
+export const storage: IStorageAdapter = new SupabaseStorageAdapter();
