@@ -18,9 +18,9 @@ import {
   Linkedin,
   Telegram,
   Reddit,
-  Pinterest,
   ExternalLink,
   MessageCircle,
+  Bookmark,
 } from 'lucide-react';
 import { useState } from 'react';
 import { simpleToast as toast } from '@/components/common/simple-toast';
@@ -77,7 +77,7 @@ const SHARE_OPTIONS: ShareOption[] = [
   },
   {
     name: 'Pinterest',
-    icon: Pinterest,
+    icon: Bookmark,
     color: 'text-red-600',
     getUrl: (url, text) => `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(url)}&description=${encodeURIComponent(text)}`,
   },
