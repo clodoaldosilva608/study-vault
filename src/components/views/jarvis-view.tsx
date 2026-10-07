@@ -26,7 +26,7 @@ import {
   Terminal,
   ShieldCheck,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { simpleToast as toast } from '@/components/common/simple-toast';
 import { formatRelative } from '@/lib/utils/file';
 
 type Credential = {

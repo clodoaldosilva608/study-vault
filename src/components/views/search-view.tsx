@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search as SearchIcon, Download, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { simpleToast as toast } from '@/components/common/simple-toast';
 import { formatBytes, formatRelative } from '@/lib/utils/file';
 import { FileTypeIcon } from '@/components/common/file-type-icon';
 import { useAppStore } from '@/lib/store/app-store';

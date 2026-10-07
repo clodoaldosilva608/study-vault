@@ -10,30 +10,58 @@ type Props = {
 type State = {
   hasError: boolean;
   error: Error | null;
+  retryCount: number;
 };
 
 /**
  * Global error boundary — catches client-side render errors and displays
  * a friendly message instead of the generic Next.js error overlay.
  *
- * Also logs the error to the console for debugging.
+ * SPECIAL HANDLING for 'removeChild' / NotFoundError:
+ * These errors are DOM reconciliation issues (often caused by portals,
+ * react-markdown, or browser extensions modifying the DOM). They don't
+ * corrupt app state — the virtual DOM and real DOM are just out of sync.
+ * A remount fixes it. So we auto-retry up to 3 times before showing
+ * the error UI.
  */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, retryCount: 0 };
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    const isRemoveChildError =
+      error.name === 'NotFoundError' ||
+      error.message.includes('removeChild') ||
+      error.message.includes('not a child of this node');
+
+    // For removeChild errors, return null (no error state) to auto-retry
+    // The componentDidCatch will handle the retry logic
+    if (isRemoveChildError) {
+      return null;
+    }
+
+    return { hasError: true, error, retryCount: 0 };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    const isRemoveChildError =
+      error.name === 'NotFoundError' ||
+      error.message.includes('removeChild') ||
+      error.message.includes('not a child of this node');
+
+    if (isRemoveChildError && this.state.retryCount < 3) {
+      console.warn('[ErrorBoundary] DOM reconciliation error — auto-retrying', this.state.retryCount + 1);
+      this.setState((prev) => ({ hasError: false, error: null, retryCount: prev.retryCount + 1 }));
+      return;
+    }
+
     console.error('[ErrorBoundary] caught:', error, errorInfo);
   }
 
   reset = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, retryCount: 0 });
   };
 
   render() {

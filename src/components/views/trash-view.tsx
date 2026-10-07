@@ -5,7 +5,7 @@ import { api } from '@/lib/api/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Trash2, RotateCcw, Loader2, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
+import { simpleToast as toast } from '@/components/common/simple-toast';
 import { formatBytes, formatRelative } from '@/lib/utils/file';
 import { FileTypeIcon } from '@/components/common/file-type-icon';
 

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
-import { Toaster } from '@/components/ui/sonner';
+import { SimpleToaster } from '@/components/common/simple-toast';
 import { Providers } from '@/components/providers';
 
 const inter = Inter({
@@ -48,8 +48,10 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground min-h-screen`}
       >
-        <Providers>{children}</Providers>
-        <Toaster richColors position="top-right" />
+        <Providers>
+          {children}
+          <SimpleToaster />
+        </Providers>
       </body>
     </html>
   );

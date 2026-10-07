@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
-import { toast } from 'sonner';
+import { simpleToast as toast } from '@/components/common/simple-toast';
 import { api, ApiError } from '@/lib/api/client';
 import { useAppStore, type AuthUser, type Workspace } from '@/lib/store/app-store';
 

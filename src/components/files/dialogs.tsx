@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Folder, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { simpleToast as toast } from '@/components/common/simple-toast';
 import { api, ApiError } from '@/lib/api/client';
 
 // Re-export UploadDialog so views can import all file dialogs from one module.

@@ -23,7 +23,7 @@ import {
   Loader2,
   Check,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { simpleToast as toast } from '@/components/common/simple-toast';
 import { formatBytes, formatRelative } from '@/lib/utils/file';
 import { FileTypeIcon } from '@/components/common/file-type-icon';
 import {

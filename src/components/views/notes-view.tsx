@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import ReactMarkdown from 'react-markdown';
 import { StickyNote, Plus, Save, Trash2, Loader2, FileText } from 'lucide-react';
-import { toast } from 'sonner';
+import { simpleToast as toast } from '@/components/common/simple-toast';
 import { formatRelative } from '@/lib/utils/file';
 import { cn } from '@/lib/utils';
 

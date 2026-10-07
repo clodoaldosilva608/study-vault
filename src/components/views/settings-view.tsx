@@ -29,7 +29,7 @@ import {
   KeyRound,
   Loader2,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { simpleToast as toast } from '@/components/common/simple-toast';
 
 type UsageResp = {
   storageUsedBytes: number;
