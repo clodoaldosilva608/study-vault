@@ -40,11 +40,37 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
+// Inline script that patches removeChild BEFORE any React code runs.
+// This must execute synchronously in <head> to prevent the DOM
+// reconciliation error from ever reaching React.
+const domPatchScript = `(function(){
+  if (typeof Node === 'undefined') return;
+  var origRemoveChild = Node.prototype.removeChild;
+  Node.prototype.removeChild = function(child) {
+    try { return origRemoveChild.call(this, child); }
+    catch (e) {
+      if (e && e.name === 'NotFoundError') return child;
+      throw e;
+    }
+  };
+  var origRemove = Element.prototype.remove;
+  Element.prototype.remove = function() {
+    try { return origRemove.call(this); }
+    catch (e) {
+      if (e && e.name === 'NotFoundError') return;
+      throw e;
+    }
+  };
+})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: domPatchScript }} />
+      </head>
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground min-h-screen`}
       >
