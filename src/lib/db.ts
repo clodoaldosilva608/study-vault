@@ -1,45 +1,66 @@
-import { PrismaClient } from '@prisma/client'
-
 /**
- * Study Vault — Prisma Client
+ * Study Vault — Prisma Client (server-only, bundler-safe)
  *
- * Uses PostgreSQL (Supabase) as the persistent database.
- * No more ephemeral SQLite, no blob sync, no schema bootstrap.
- * The schema is applied via `prisma db push` or `prisma migrate`.
+ * Uses eval('require') to prevent the bundler (Turbopack/Webpack) from
+ * tracing the @prisma/client import. This ensures Prisma Client NEVER
+ * appears in client-side JavaScript bundles, fixing the 'M_ID' error.
+ *
+ * The Proxy pattern lazily creates the PrismaClient on first access,
+ * only on the server where require() is available.
  */
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+type PrismaLike = Record<string, any>;
+
+let _dbInstance: PrismaLike | null = null;
+
+function getDbInstance(): PrismaLike | null {
+  // Only run on server — require is not available in the browser
+  if (typeof window !== 'undefined') return null;
+  if (typeof require === 'undefined') return null;
+
+  if (!_dbInstance) {
+    // eval('require') prevents the bundler from seeing this import,
+    // so @prisma/client is never included in client bundles.
+    const mod = eval('require')('@prisma/client');
+    const PrismaClient = mod.PrismaClient || mod.default?.PrismaClient || mod.default;
+    _dbInstance = new PrismaClient({
+      log: ['error', 'warn'],
+    });
+
+    // Cache on globalThis for HMR in dev
+    const g = globalThis as any;
+    if (process.env.NODE_ENV !== 'production') {
+      if (!g.__prismaClient) g.__prismaClient = _dbInstance;
+      else _dbInstance = g.__prismaClient;
+    }
+  }
+  return _dbInstance;
 }
 
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: ['error', 'warn'],
-  })
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
-
 /**
- * No-op on Postgres — the schema is applied via migrations.
- * Kept for backward compatibility with the catch-all route.
+ * Proxy that forwards all property accesses to the real PrismaClient.
+ * On the client, all accesses return undefined (no-op).
+ * On the server, the PrismaClient is lazily created on first access.
  */
+export const db = new Proxy({} as PrismaLike, {
+  get(_target, prop: string) {
+    const instance = getDbInstance();
+    if (!instance) return undefined;
+    const val = instance[prop];
+    // Bind methods so `this` context is correct
+    return typeof val === 'function' ? val.bind(instance) : val;
+  },
+}) as any;
+
+// No-op functions for backward compatibility
 export async function ensureSchema(): Promise<void> {
-  return
+  return;
 }
 
-/**
- * No-op on Postgres — data is persistent, no blob sync needed.
- * Kept for backward compatibility with the catch-all route.
- */
 export async function syncDbFromBlob(): Promise<void> {
-  return
+  return;
 }
 
-/**
- * No-op on Postgres — data is automatically committed.
- * Kept for backward compatibility with the catch-all route.
- */
 export async function persistDbToBlob(): Promise<void> {
-  return
+  return;
 }
