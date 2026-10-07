@@ -19,34 +19,21 @@ export function Providers({ children }: { children: ReactNode }) {
       }),
   );
 
-  // Register service worker that UNREGISTERS itself to clear stale caches.
-  // This runs once on mount in production only.
+  // Unregister any existing service workers on mount.
+  // The SW was removed but old registrations may persist in user browsers.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!('serviceWorker' in navigator)) return;
-    if (process.env.NODE_ENV !== 'production') return;
 
-    const unregisterOld = async () => {
-      try {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const reg of registrations) {
-          await reg.unregister();
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((regs) => {
+        for (const reg of regs) {
+          reg.unregister();
           console.log('[sw] unregistered old service worker');
         }
-      } catch (err) {
-        console.warn('[sw] unregister failed', err);
-      }
-    };
-
-    // Register the self-unregistering SW (clears old caches)
-    navigator.serviceWorker
-      .register('/sw.js?v=cleanup', { scope: '/' })
-      .then(() => {
-        // After registration, the SW will self-unregister on activate.
-        // Also manually unregister after a short delay.
-        setTimeout(unregisterOld, 1000);
       })
-      .catch((err) => console.warn('[sw] register failed', err));
+      .catch(() => null);
   }, []);
 
   return (

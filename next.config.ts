@@ -6,9 +6,20 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
-  // Allow Prisma + bcrypt to be bundled server-side.
-  serverExternalPackages: ["@prisma/client", "bcrypt", "@node-rs/bcrypt"],
-  // Make sure static files (manifest, sw.js, icons) are served as-is.
+  // CRITICAL: These packages MUST stay server-side only.
+  // If they leak into client bundles, they cause 'M_ID' errors
+  // and other runtime crashes in the browser.
+  serverExternalPackages: [
+    "@prisma/client",
+    "@prisma/adapter-libsql",
+    "prisma",
+    "bcrypt",
+    "bcryptjs",
+    "@node-rs/bcrypt",
+    "jsonwebtoken",
+    "@vercel/blob",
+  ],
+  // Make sure static files are served as-is
   async headers() {
     return [
       {
