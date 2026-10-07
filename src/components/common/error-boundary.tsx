@@ -16,13 +16,16 @@ type State = {
  * ErrorBoundary — catches client-side render errors.
  *
  * For 'removeChild' / NotFoundError errors: these are DOM reconciliation
- * issues caused by portals. We SILENTLY SWALLOW them (return null from
- * getDerivedStateFromError) WITHOUT calling setState in componentDidCatch.
- * This prevents infinite retry loops.
+ * issues caused by browser extensions or portal remnants. We SILENTLY
+ * SWALLOW them and force a remount of children using a key counter.
  *
- * For other errors: show the fallback UI.
+ * The key change forces React to completely unmount and remount the
+ * children, which clears any corrupted DOM state without entering
+ * an infinite retry loop.
  */
 export class ErrorBoundary extends Component<Props, State> {
+  _retryCount: number = 0;
+
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -34,13 +37,12 @@ export class ErrorBoundary extends Component<Props, State> {
       error.message.includes('removeChild') ||
       error.message.includes('not a child of this node');
 
-    // For removeChild errors: swallow silently (return null = no state change)
-    // React will continue rendering the children as if nothing happened.
     if (isRemoveChildError) {
+      // Return null = swallow the error, don't change state.
+      // componentDidCatch will handle the remount.
       return null;
     }
 
-    // For all other errors: show the fallback UI
     return { hasError: true, error };
   }
 
@@ -51,10 +53,15 @@ export class ErrorBoundary extends Component<Props, State> {
       error.message.includes('not a child of this node');
 
     if (isRemoveChildError) {
-      // Do NOT call setState — just log. Calling setState would trigger
-      // a re-render which could cause another removeChild error, creating
-      // an infinite loop.
-      console.warn('[ErrorBoundary] DOM reconciliation error swallowed');
+      // Increment a retry counter to force a remount of children.
+      // This clears corrupted DOM state.
+      // Cap at 5 retries to prevent infinite loops.
+      if (this._retryCount < 5) {
+        this._retryCount++;
+        // Force a re-render by updating a dummy state.
+        // The key change in render() will remount children.
+        this.forceUpdate();
+      }
       return;
     }
 
@@ -62,6 +69,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   reset = () => {
+    this._retryCount = 0;
     this.setState({ hasError: false, error: null });
   };
 
@@ -72,7 +80,13 @@ export class ErrorBoundary extends Component<Props, State> {
       }
       return <DefaultErrorFallback error={this.state.error} reset={this.reset} />;
     }
-    return this.props.children;
+    // Use the retry count as part of the key to force remount on error.
+    // This clears any corrupted DOM state.
+    return (
+      <div key={`eb-${this._retryCount}`}>
+        {this.props.children}
+      </div>
+    );
   }
 }
 

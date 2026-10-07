@@ -4,6 +4,7 @@ import { ThemeProvider } from 'next-themes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ErrorBoundary } from '@/components/common/error-boundary';
+import { patchRemoveChild } from '@/lib/utils/dom-patch';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
@@ -19,21 +20,21 @@ export function Providers({ children }: { children: ReactNode }) {
       }),
   );
 
-  // Unregister any existing service workers on mount.
-  // The SW was removed but old registrations may persist in user browsers.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!('serviceWorker' in navigator)) return;
+    // Patch removeChild to suppress NotFoundError (DOM reconciliation errors)
+    patchRemoveChild();
 
-    navigator.serviceWorker
-      .getRegistrations()
-      .then((regs) => {
-        for (const reg of regs) {
-          reg.unregister();
-          console.log('[sw] unregistered old service worker');
-        }
-      })
-      .catch(() => null);
+    // Unregister any existing service workers on mount.
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((regs) => {
+          for (const reg of regs) {
+            reg.unregister();
+          }
+        })
+        .catch(() => null);
+    }
   }, []);
 
   return (
