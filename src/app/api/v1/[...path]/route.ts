@@ -21,7 +21,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db, ensureSchema, persistDbToBlob, syncDbFromBlob } from '@/lib/db';
+import { db } from '@/lib/db';
 import { Errors, toHttpError } from '@/lib/domain/errors';
 import {
   requireAuth,
@@ -119,18 +119,10 @@ export const maxDuration = 120; // 2 minutes for migrate endpoint
 
 async function dispatch(req: NextRequest, params: { path: string[] }, method: string) {
   try {
-    // On Postgres, schema is managed via migrations. ensureSchema() is a no-op.
-    // ensureSeedUser() still creates the bootstrap user + PRF folders if missing.
+    // ensureSeedUser creates the bootstrap user + PRF folders if missing.
     await ensureSeedUser();
 
-    const result = await routeRequest(req, params.path, method);
-
-    // No blob sync needed on Postgres — data is persistent.
-    if (['POST', 'PATCH', 'DELETE', 'PUT'].includes(method)) {
-      await persistDbToBlob();
-    }
-
-    return result;
+    return await routeRequest(req, params.path, method);
   } catch (err) {
     return fail(err);
   }
@@ -224,12 +216,8 @@ async function routeRequest(req: NextRequest, p: string[], method: string) {
 
     // ---- SETUP ----
     if (p[0] === 'setup' && method === 'POST') {
-      return handleSetup();
-    }
-
-    // ---- MIGRATE (runs prisma db push from inside Vercel) ----
-    if (p[0] === 'migrate' && method === 'POST') {
-      return handleMigrate();
+      await ensureSeedUser();
+      return ok({ setup: true, message: 'Seed ready' });
     }
 
     return fail(Errors.notFound('API endpoint'));
@@ -905,72 +893,4 @@ async function findOrCreateFolder(
   });
   if (existing) return existing;
   return folderService.create(ctx, { name, parentId });
-}
-
-// ============================================================
-// SETUP / MIGRATE
-// ============================================================
-
-async function handleSetup() {
-  await ensureSchema();
-  await ensureSeedUser();
-  return ok({ setup: true, message: 'Schema + seed ready' });
-}
-
-/**
- * Creates the Postgres schema by executing raw SQL statements directly
- * via Prisma's $executeRawUnsafe. This avoids the need for the Prisma CLI
- * binary in the Vercel function bundle.
- *
- * Uses CREATE TABLE IF NOT EXISTS so it's idempotent.
- */
-async function handleMigrate() {
-  try {
-    // Import the SCHEMA_SQL string (Postgres-compatible CREATE TABLE statements)
-    const { SCHEMA_SQL } = await import('@/lib/db/schema-sql');
-
-    // Split into individual statements
-    const statements = SCHEMA_SQL
-      .split(/;\s*\n/)
-      .map((s) =>
-        s
-          .split('\n')
-          .filter((line) => !line.trim().startsWith('--'))
-          .join('\n')
-          .trim(),
-      )
-      .filter((s) => s.length > 0);
-
-    let applied = 0;
-    const errors: string[] = [];
-
-    for (const stmt of statements) {
-      try {
-        await db.$executeRawUnsafe(stmt + ';');
-        applied++;
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        // Ignore "already exists" errors — idempotent
-        if (!msg.includes('already exists')) {
-          errors.push(`${stmt.slice(0, 80)}... -> ${msg.slice(0, 200)}`);
-        }
-      }
-    }
-
-    console.log('[migrate] applied', applied, 'statements,', errors.length, 'errors');
-
-    return ok({
-      migrated: true,
-      applied,
-      total: statements.length,
-      errors: errors.slice(0, 10),
-    });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[migrate] failed', msg);
-    return NextResponse.json(
-      { ok: false, error: { code: 'MIGRATE_FAILED', message: msg.slice(2000) } },
-      { status: 500 },
-    );
-  }
 }
