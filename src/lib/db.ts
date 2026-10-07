@@ -1,12 +1,12 @@
 /**
  * Study Vault — Prisma Client (server-only, bundler-safe)
  *
- * Uses eval('require') to prevent the bundler (Turbopack/Webpack) from
+ * Uses eval('require') with absolute path to prevent the bundler from
  * tracing the @prisma/client import. This ensures Prisma Client NEVER
- * appears in client-side JavaScript bundles, fixing the 'M_ID' error.
+ * appears in client-side JavaScript bundles.
  *
- * The Proxy pattern lazily creates the PrismaClient on first access,
- * only on the server where require() is available.
+ * The absolute path is needed because eval('require') resolves from
+ * the current module's directory, which may not have node_modules.
  */
 
 type PrismaLike = Record<string, any>;
@@ -14,24 +14,42 @@ type PrismaLike = Record<string, any>;
 let _dbInstance: PrismaLike | null = null;
 
 function getDbInstance(): PrismaLike | null {
-  // Only run on server — require is not available in the browser
+  // Only run on server
   if (typeof window !== 'undefined') return null;
-  if (typeof require === 'undefined') return null;
 
   if (!_dbInstance) {
-    // eval('require') prevents the bundler from seeing this import,
-    // so @prisma/client is never included in client bundles.
-    const mod = eval('require')('@prisma/client');
-    const PrismaClient = mod.PrismaClient || mod.default?.PrismaClient || mod.default;
-    _dbInstance = new PrismaClient({
-      log: ['error', 'warn'],
-    });
+    try {
+      // Build absolute path to @prisma/client
+      // On Vercel: process.cwd() = /var/task
+      // Locally: process.cwd() = project root
+      const path = eval('require')('path');
+      const prismaClientPath = path.join(
+        process.cwd(),
+        'node_modules',
+        '@prisma',
+        'client'
+      );
 
-    // Cache on globalThis for HMR in dev
-    const g = globalThis as any;
-    if (process.env.NODE_ENV !== 'production') {
-      if (!g.__prismaClient) g.__prismaClient = _dbInstance;
-      else _dbInstance = g.__prismaClient;
+      // eval('require') prevents the bundler from tracing this import
+      const mod = eval('require')(prismaClientPath);
+      const PrismaClient = mod.PrismaClient || mod.default?.PrismaClient || mod.default;
+
+      _dbInstance = new PrismaClient({
+        log: ['error', 'warn'],
+      });
+
+      // Cache on globalThis for warm instance reuse
+      const g = globalThis as any;
+      if (g.__prismaClient) {
+        _dbInstance = g.__prismaClient;
+      } else {
+        g.__prismaClient = _dbInstance;
+      }
+
+      console.log('[db] PrismaClient initialized');
+    } catch (err) {
+      console.error('[db] failed to initialize PrismaClient:', err instanceof Error ? err.message : err);
+      return null;
     }
   }
   return _dbInstance;
@@ -47,7 +65,6 @@ export const db = new Proxy({} as PrismaLike, {
     const instance = getDbInstance();
     if (!instance) return undefined;
     const val = instance[prop];
-    // Bind methods so `this` context is correct
     return typeof val === 'function' ? val.bind(instance) : val;
   },
 }) as any;
