@@ -67,12 +67,24 @@ import {
 // ---- Helpers ----
 
 function ok(data: unknown, status = 200) {
-  return NextResponse.json({ ok: true, data }, { status });
+  return NextResponse.json({ ok: true, data }, {
+    status,
+    headers: {
+      'cache-control': 'no-store, no-cache, must-revalidate, max-age=0',
+      'pragma': 'no-cache',
+      'expires': '0',
+    },
+  });
 }
 
 function fail(err: unknown) {
   const { statusCode, body } = toHttpError(err);
-  return NextResponse.json({ ok: false, ...body }, { status: statusCode });
+  return NextResponse.json({ ok: false, ...body }, {
+    status: statusCode,
+    headers: {
+      'cache-control': 'no-store, no-cache, must-revalidate, max-age=0',
+    },
+  });
 }
 
 function pag(items: unknown[], total: number, page: number, pageSize: number) {
