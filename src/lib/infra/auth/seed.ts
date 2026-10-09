@@ -110,79 +110,94 @@ export async function ensureSeedUser(): Promise<void> {
       }
 
       // ---- PRF FOLDER STRUCTURE ----
-      // Only create if the PRF root folder doesn't exist AND isn't soft-deleted.
-      // We check by name+parentId to avoid recreating folders the user deleted.
-      const prfFolder = await db.folder.findFirst({
+      // Check if the user has deleted the PRF structure (via Integration flag).
+      // If so, do NOT recreate it — respect the user's choice.
+      const prfDeletedFlag = await db.integration.findUnique({
         where: {
-          workspaceId: SEED_WORKSPACE_ID,
-          parentId: null,
-          name: 'PRF - Polícia Rodoviária Federal',
-          deletedAt: null,
+          workspaceId_type: {
+            workspaceId: SEED_WORKSPACE_ID,
+            type: 'prf_seed',
+          },
         },
-      });
-      if (!prfFolder) {
-        // Check if there's a soft-deleted one we can restore
-        const softDeleted = await db.folder.findFirst({
+      }).catch(() => null);
+
+      if (prfDeletedFlag) {
+        // User deleted the PRF structure — skip recreation.
+        console.log('[seed] PRF structure was deleted by user — skipping recreation');
+      } else {
+        // PRF not deleted — ensure structure exists.
+        // Only create if the PRF root folder doesn't exist AND isn't soft-deleted.
+        const prfFolder = await db.folder.findFirst({
           where: {
             workspaceId: SEED_WORKSPACE_ID,
             parentId: null,
             name: 'PRF - Polícia Rodoviária Federal',
-            deletedAt: { not: null },
-          },
-        });
-        if (softDeleted) {
-          // User deleted it — don't recreate. Respect the user's choice.
-        } else {
-          // Truly doesn't exist — create it
-          await db.folder.create({
-            data: {
-              id: PRF_FOLDER_ID,
-              workspaceId: SEED_WORKSPACE_ID,
-              parentId: null,
-              name: 'PRF - Polícia Rodoviária Federal',
-              path: '/PRF - Polícia Rodoviária Federal',
-              createdBy: SEED_USER_ID,
-            },
-          });
-          console.log('[seed] PRF root folder created');
-        }
-      }
-
-      // Create subject subfolders — only if they don't exist (by name+parentId, not deleted)
-      for (const subject of PRF_SUBJECTS) {
-        const existing = await db.folder.findFirst({
-          where: {
-            workspaceId: SEED_WORKSPACE_ID,
-            parentId: PRF_FOLDER_ID,
-            name: subject.name,
             deletedAt: null,
           },
         });
-        if (!existing) {
-          // Check if soft-deleted — if so, don't recreate (respect user choice)
+        if (!prfFolder) {
           const softDeleted = await db.folder.findFirst({
+            where: {
+              workspaceId: SEED_WORKSPACE_ID,
+              parentId: null,
+              name: 'PRF - Polícia Rodoviária Federal',
+              deletedAt: { not: null },
+            },
+          });
+          if (softDeleted) {
+            // User deleted it — don't recreate. Respect the user's choice.
+          } else {
+            // Truly doesn't exist — create it
+            await db.folder.create({
+              data: {
+                id: PRF_FOLDER_ID,
+                workspaceId: SEED_WORKSPACE_ID,
+                parentId: null,
+                name: 'PRF - Polícia Rodoviária Federal',
+                path: '/PRF - Polícia Rodoviária Federal',
+                createdBy: SEED_USER_ID,
+              },
+            });
+            console.log('[seed] PRF root folder created');
+          }
+        }
+
+        // Create subject subfolders — only if they don't exist (by name+parentId, not deleted)
+        for (const subject of PRF_SUBJECTS) {
+          const existing = await db.folder.findFirst({
             where: {
               workspaceId: SEED_WORKSPACE_ID,
               parentId: PRF_FOLDER_ID,
               name: subject.name,
-              deletedAt: { not: null },
+              deletedAt: null,
             },
           });
-          if (!softDeleted) {
-            await db.folder.create({
-              data: {
-                id: subject.id,
+          if (!existing) {
+            // Check if soft-deleted — if so, don't recreate (respect user choice)
+            const softDeleted = await db.folder.findFirst({
+              where: {
                 workspaceId: SEED_WORKSPACE_ID,
                 parentId: PRF_FOLDER_ID,
                 name: subject.name,
-                path: `/PRF - Polícia Rodoviária Federal/${subject.name}`,
-                createdBy: SEED_USER_ID,
+                deletedAt: { not: null },
               },
             });
+            if (!softDeleted) {
+              await db.folder.create({
+                data: {
+                  id: subject.id,
+                  workspaceId: SEED_WORKSPACE_ID,
+                  parentId: PRF_FOLDER_ID,
+                  name: subject.name,
+                  path: `/PRF - Polícia Rodoviária Federal/${subject.name}`,
+                  createdBy: SEED_USER_ID,
+                },
+              });
+            }
           }
         }
+        console.log('[seed] PRF subject folders ensured');
       }
-      console.log('[seed] PRF subject folders ensured');
 
       // Update usage counter
       const foldersCount = await db.folder.count({
