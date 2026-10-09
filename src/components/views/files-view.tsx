@@ -170,6 +170,7 @@ export function FilesView() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
 
   const [showUpload, setShowUpload] = useState(false);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
@@ -287,19 +288,44 @@ export function FilesView() {
   }, [refresh]);
 
   const handleBulkDelete = useCallback(async () => {
-    if (selected.size === 0) return;
-    if (!confirm(`Delete ${selected.size} selected file(s)? They go to trash.`)) return;
-    let ok = 0;
+    const totalSelected = selected.size + selectedFolderIds.size;
+    if (totalSelected === 0) return;
+    if (!confirm(`Excluir ${totalSelected} item(ns) selecionado(s)? Eles vão para a lixeira.`)) return;
+
+    // Delete selected files
+    let okFiles = 0;
     for (const id of selected) {
       try {
         await api.delete(`/api/v1/files/${id}`);
-        ok++;
+        okFiles++;
       } catch { /* ignore */ }
     }
-    toast.success(`${ok} file(s) moved to trash`);
+
+    // Delete selected folders
+    let okFolders = 0;
+    for (const id of selectedFolderIds) {
+      try {
+        await api.delete(`/api/v1/folders/${id}`);
+        okFolders++;
+      } catch { /* ignore */ }
+    }
+
+    if (okFiles + okFolders > 0) {
+      toast.success(`${okFiles + okFolders} item(ns) movido(s) para a lixeira`);
+    }
     clearSelection();
+    setSelectedFolderIds(new Set());
     refresh();
-  }, [selected, clearSelection, refresh]);
+  }, [selected, selectedFolderIds, clearSelection, refresh]);
+
+  const toggleFolderSelect = useCallback((id: string) => {
+    setSelectedFolderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   // Drag & drop
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
@@ -339,6 +365,8 @@ export function FilesView() {
   }, [refresh]);
 
   const allSelected = files.length > 0 && files.every((f) => selected.has(f.id));
+  const allFoldersSelected = folders.length > 0 && folders.every((f) => selectedFolderIds.has(f.id));
+  const totalSelected = selected.size + selectedFolderIds.size;
 
   return (
     <div className="p-4 lg:p-8 space-y-4 max-w-7xl mx-auto">
@@ -363,10 +391,10 @@ export function FilesView() {
         </div>
 
         <div className="flex items-center gap-2">
-          {selected.size > 0 && (
+          {totalSelected > 0 && (
             <Button variant="destructive" size="sm" onClick={handleBulkDelete} className="gap-2">
               <Trash2 className="h-3.5 w-3.5" />
-              Excluir {selected.size}
+              Excluir {totalSelected}
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => setShowCreateFolder(true)} className="gap-2">
@@ -382,18 +410,24 @@ export function FilesView() {
       </div>
 
       {/* Select-all row */}
-      {files.length > 0 && (
+      {(folders.length > 0 || files.length > 0) && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <SimpleCheckbox
-            checked={allSelected}
+            checked={totalSelected === folders.length + files.length && totalSelected > 0}
             onChange={() => {
-              if (allSelected) clearSelection();
-              else selectMany(files.map((f) => f.id));
+              const allSel = totalSelected === folders.length + files.length;
+              if (allSel) {
+                clearSelection();
+                setSelectedFolderIds(new Set());
+              } else {
+                selectMany(files.map((f) => f.id));
+                setSelectedFolderIds(new Set(folders.map((f) => f.id)));
+              }
             }}
             ariaLabel="Selecionar tudo"
           />
           <span>
-            {files.length} arquivo{files.length !== 1 ? 's' : ''} · {selected.size} selecionado{selected.size !== 1 ? 's' : ''}
+            {folders.length + files.length} item(ns) · {totalSelected} selecionado(s)
           </span>
         </div>
       )}
@@ -421,7 +455,9 @@ export function FilesView() {
         </Card>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {folders.map((folder) => (
+          {folders.map((folder) => {
+            const isFolderSel = selectedFolderIds.has(folder.id);
+            return (
             <button
               key={folder.id}
               onClick={() => setCurrentFolder(folder.id)}
@@ -430,6 +466,7 @@ export function FilesView() {
               onDrop={(e) => onFolderDrop(e, folder.id)}
               className={cn(
                 'group relative flex flex-col items-center gap-2 p-4 rounded-xl border bg-card hover:bg-accent/40 hover:border-border/80 transition-colors text-center min-h-[100px]',
+                isFolderSel && 'border-primary ring-2 ring-primary/20 bg-primary/5',
                 dragOverFolderId === folder.id
                   ? 'border-primary ring-2 ring-primary/30 bg-primary/8'
                   : 'border-border/60',
@@ -471,8 +508,16 @@ export function FilesView() {
                   </>
                 )}
               </SimpleMenu>
+              <div className="absolute top-2 left-2">
+                <SimpleCheckbox
+                  checked={isFolderSel}
+                  onChange={() => toggleFolderSelect(folder.id)}
+                  ariaLabel="Selecionar pasta"
+                />
+              </div>
             </button>
-          ))}
+            );
+          })}
 
           {files.map((file) => {
             const isFav = (file.favorites?.length ?? 0) > 0;
